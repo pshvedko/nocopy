@@ -12,8 +12,9 @@ import (
 )
 
 type Repository interface {
-	GetFileID(context.Context, string) (uuid.UUID, error)
-	SetFileID(context.Context, uuid.UUID, []block.Block) ([]uuid.UUID, error)
+	AddFileID(context.Context, string) (uuid.UUID, error)
+	GetBlockID(context.Context, string) (*string, int64, []uuid.UUID, error)
+	SetChainID(context.Context, uuid.UUID, []block.Block) ([]uuid.UUID, error)
 }
 
 func New(name string) (Repository, error) {

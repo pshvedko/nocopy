@@ -18,6 +18,7 @@ func main() {
 	var portFlag string
 	var baseFlag string
 	var fileFlag string
+	var sizeFlag int64
 
 	var s service.Service
 	defer s.Wait()
@@ -29,7 +30,7 @@ func main() {
 		Use:  "nocopy",
 		Long: "S3 compatible copy less microservice",
 		RunE: func(*cobra.Command, []string) error {
-			err := s.Run(ctx, addrFlag, portFlag, baseFlag, fileFlag)
+			err := s.Run(ctx, addrFlag, portFlag, baseFlag, fileFlag, sizeFlag)
 			switch {
 			case errors.Is(err, http.ErrServerClosed):
 				return nil
@@ -43,6 +44,7 @@ func main() {
 	c.Flags().StringVar(&portFlag, "port", "8080", "bind port")
 	c.Flags().StringVar(&baseFlag, "base", "postgres://postgres:postgres@postgres:5432/nocopy", "data base")
 	c.Flags().StringVar(&fileFlag, "file", "minio://admin:admin123@minio:9000/nocopy", "file storage")
+	c.Flags().Int64Var(&sizeFlag, "size", 512, "block size")
 
 	err := c.Execute()
 	if err != nil {

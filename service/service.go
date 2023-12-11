@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 
 	"github.com/pshvedko/nocopy/repository"
 	"github.com/pshvedko/nocopy/storage"
@@ -28,7 +29,7 @@ type Service struct {
 	Size int64
 }
 
-func (s *Service) Run(ctx context.Context, addr, port, base, file string) error {
+func (s *Service) Run(ctx context.Context, addr, port, base, file string, size int64) error {
 	var err error
 	s.Storage, err = storage.New(file)
 	if err != nil {
@@ -39,8 +40,11 @@ func (s *Service) Run(ctx context.Context, addr, port, base, file string) error 
 		return err
 	}
 	h := chi.NewRouter()
+	h.Use(middleware.Logger)
+	h.Use(middleware.Recoverer)
 	h.Put("/*", s.Put)
-	s.Size = 512
+	h.Get("/*", s.Get)
+	s.Size = size
 	s.Handler = h
 	s.Addr = net.JoinHostPort(addr, port)
 	s.BaseContext = func(net.Listener) context.Context {

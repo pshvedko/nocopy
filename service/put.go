@@ -3,7 +3,6 @@ package service
 import (
 	"crypto/sha1"
 	"io"
-	"log/slog"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -13,32 +12,39 @@ import (
 )
 
 func (s *Service) Put(w http.ResponseWriter, r *http.Request) {
-	slog.Warn("put", "size", r.ContentLength, "path", r.URL.Path)
-	fileID, err := s.GetFileID(r.Context(), r.URL.Path)
 	var blocks []block.Block
-	for size, length := r.ContentLength, r.ContentLength; length != 0; length -= size {
+	fileID, err := s.AddFileID(r.Context(), r.URL.Path)
+	for err == nil {
 		blockID := uuid.New()
 		hash := sha1.New()
-		size, err = s.Store(r.Context(), blockID.String(), min(length, s.Size),
-			util.HashReader(hash, io.LimitReader(r.Body, s.Size)))
+		body := io.LimitReader(r.Body, s.Size)
+		body = util.HashReader(hash, body)
+		var size int64
+		size, err = s.Store(r.Context(), blockID.String(), min(r.ContentLength, s.Size), body)
 		if err != nil {
 			break
+		} else if r.ContentLength > 0 {
+			r.ContentLength -= size
 		}
 		blocks = append(blocks, block.Block{
 			ID:   blockID,
 			Hash: hash.Sum([]byte{}),
 			Size: size,
 		})
-		slog.Warn("put", "size", size, "block_id", blockID)
 		if size < s.Size {
 			var chainIDs []uuid.UUID
-			chainIDs, err = s.SetFileID(r.Context(), fileID, blocks)
+			chainIDs, err = s.SetChainID(r.Context(), fileID, blocks)
 			if err == nil {
-				slog.Warn("put", "id", fileID, "chain_id", chainIDs)
+				w.WriteHeader(http.StatusCreated)
+				s.Add(1)
+				go s.AfterPut(chainIDs[0], chainIDs[1])
 				return
 			}
 		}
 	}
-	w.WriteHeader(http.StatusInsufficientStorage)
-	slog.Error("put", "err", err)
+	w.WriteHeader(http.StatusInternalServerError)
+}
+
+func (s *Service) AfterPut(chainID0, chainID1 uuid.UUID) {
+	defer s.Done()
 }
