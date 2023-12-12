@@ -27,8 +27,8 @@ func main() {
 	defer cancel()
 
 	c := &cobra.Command{
-		Use:  "nocopy",
-		Long: "S3 compatible copy less microservice",
+		Use:  "s3nocopy",
+		Long: "S3 compatible copy less proxy service",
 		RunE: func(*cobra.Command, []string) error {
 			err := s.Run(ctx, addrFlag, portFlag, baseFlag, fileFlag, sizeFlag)
 			switch {
