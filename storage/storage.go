@@ -3,7 +3,6 @@ package storage
 import (
 	"context"
 	"errors"
-	"github.com/google/uuid"
 	"io"
 	"net/url"
 
@@ -14,7 +13,6 @@ type Storage interface {
 	Store(context.Context, string, int64, io.Reader) (int64, error)
 	Load(context.Context, string) (io.ReadSeekCloser, error)
 	Purge(context.Context, string) error
-	Drop(context.Context, uuid.UUID) ([]uuid.UUID, error)
 	Shutdown(context.Context) error
 }
 

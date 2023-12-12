@@ -71,7 +71,7 @@ func (s *Service) Copy(ctx context.Context, chains []uuid.UUID, blocks []uuid.UU
 					_, _ = origin.Seek(0, 0)
 				}
 				if io.Compare(origin, similar) {
-					err = s.Repository.Refer(ctx, chains[0], blocks[i], similarities[j])
+					err = s.Repository.Link(ctx, chains[0], blocks[i], similarities[j])
 					if err == nil {
 						_ = origin.Close()
 						_ = similar.Close()
@@ -88,7 +88,7 @@ func (s *Service) Copy(ctx context.Context, chains []uuid.UUID, blocks []uuid.UU
 		}
 		_ = origin.Close()
 	}
-	oldies, err := s.Storage.Drop(ctx, chains[1])
+	oldies, err := s.Repository.Break(ctx, chains[1])
 	if err != nil {
 		return
 	}
