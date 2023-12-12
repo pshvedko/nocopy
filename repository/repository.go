@@ -8,16 +8,17 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/pshvedko/nocopy/repository/block"
 	"github.com/pshvedko/nocopy/repository/postgres"
 )
 
 type Repository interface {
 	Put(context.Context, string) (uuid.UUID, error)
 	Get(context.Context, string) (string, time.Time, int64, []uuid.UUID, error)
-	Update(context.Context, uuid.UUID, []block.Block) ([]uuid.UUID, error)
+	Lookup(context.Context, uuid.UUID, []byte, int64) ([]uuid.UUID, error)
+	Refer(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) error
+	Update(context.Context, uuid.UUID, []uuid.UUID, [][]byte, []int64) ([]uuid.UUID, error)
 	Delete(context.Context, string) ([]uuid.UUID, error)
-	Shutdown(ctx context.Context) error
+	Shutdown(context.Context) error
 }
 
 func New(name string) (Repository, error) {

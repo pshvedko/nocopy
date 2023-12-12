@@ -8,10 +8,10 @@ import (
 )
 
 func (s *Service) Get(w http.ResponseWriter, r *http.Request) {
-	mime, date, size, blockIDs, err := s.Repository.Get(r.Context(), r.URL.Path)
+	mime, date, size, blocks, err := s.Repository.Get(r.Context(), r.URL.Path)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-	} else if len(blockIDs) == 0 {
+	} else if len(blocks) == 0 {
 		w.WriteHeader(http.StatusNotFound)
 	} else {
 		w.Header().Add("Content-Length", strconv.FormatInt(size, 10))
@@ -20,9 +20,9 @@ func (s *Service) Get(w http.ResponseWriter, r *http.Request) {
 			w.Header().Add("Content-Type", mime)
 		}
 		w.WriteHeader(http.StatusOK)
-		for _, blockID := range blockIDs {
+		for _, id := range blocks {
 			if func() (err error) {
-				body, err := s.Storage.Load(r.Context(), blockID.String())
+				body, err := s.Storage.Load(r.Context(), id.String())
 				if err != nil {
 					return
 				}

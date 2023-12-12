@@ -2,6 +2,7 @@ package minio
 
 import (
 	"context"
+	"github.com/google/uuid"
 	"io"
 	"net/url"
 
@@ -12,6 +13,11 @@ import (
 type Storage struct {
 	*url.URL
 	*minio.Client
+}
+
+func (s Storage) Drop(ctx context.Context, cid uuid.UUID) (blocks []uuid.UUID, err error) {
+	//TODO implement me
+	panic("implement me")
 }
 
 func (s Storage) Shutdown(context.Context) error { return nil }

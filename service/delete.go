@@ -7,18 +7,18 @@ import (
 )
 
 func (s *Service) Delete(w http.ResponseWriter, r *http.Request) {
-	blockIDs, err := s.Repository.Delete(r.Context(), r.URL.Path)
+	blocks, err := s.Repository.Delete(r.Context(), r.URL.Path)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-	} else if len(blockIDs) == 0 {
+	} else if len(blocks) == 0 {
 		w.WriteHeader(http.StatusNotFound)
 	} else {
 		w.WriteHeader(http.StatusNoContent)
-		for _, blockID := range blockIDs {
-			if blockID == uuid.Nil {
+		for _, id := range blocks {
+			if id == uuid.Nil {
 				continue
 			}
-			_ = s.Storage.Purge(r.Context(), blockID.String())
+			_ = s.Storage.Purge(r.Context(), id.String())
 		}
 	}
 }
