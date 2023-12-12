@@ -8,7 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/pshvedko/nocopy/repository/block"
-	"github.com/pshvedko/nocopy/repository/util"
+	"github.com/pshvedko/nocopy/util"
 )
 
 func (s *Service) Put(w http.ResponseWriter, r *http.Request) {
