@@ -32,7 +32,7 @@ type Repository struct {
 	*sqlx.DB
 }
 
-func (r Repository) DeleteBlockID(ctx context.Context, name string) (blockIDs []uuid.UUID, err error) {
+func (r Repository) Delete(ctx context.Context, name string) (blockIDs []uuid.UUID, err error) {
 	var blockID uuid.UUID
 	var chainID uuid.UUID
 	err = r.GetContext(ctx, &chainID, deleteFileQuery, name)
@@ -84,7 +84,7 @@ func (r Repository) Shutdown(context.Context) error {
 	return r.Close()
 }
 
-func (r Repository) GetBlockID(ctx context.Context, name string) (mime string, date time.Time, length int64, blockIDs []uuid.UUID, err error) {
+func (r Repository) Get(ctx context.Context, name string) (mime string, date time.Time, length int64, blockIDs []uuid.UUID, err error) {
 	rows, err := r.QueryContext(ctx, getBlockQuery, name)
 	if err != nil {
 		return
@@ -117,7 +117,7 @@ func (r Repository) GetBlockID(ctx context.Context, name string) (mime string, d
 	return
 }
 
-func (r Repository) SetChainID(ctx context.Context, id uuid.UUID, blocks []block.Block) ([]uuid.UUID, error) {
+func (r Repository) Update(ctx context.Context, id uuid.UUID, blocks []block.Block) ([]uuid.UUID, error) {
 	var chainIDs [2]uuid.UUID
 	err := r.GetContext(ctx, &chainIDs[0], addChainQuery)
 	if err != nil {
@@ -137,7 +137,7 @@ func (r Repository) SetChainID(ctx context.Context, id uuid.UUID, blocks []block
 	return chainIDs[:], err
 }
 
-func (r Repository) AddFileID(ctx context.Context, name string) (uuid.UUID, error) {
+func (r Repository) Put(ctx context.Context, name string) (uuid.UUID, error) {
 	var id uuid.UUID
 	err := r.GetContext(ctx, &id, getFileQuery, name)
 	return id, err

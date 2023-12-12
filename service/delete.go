@@ -7,7 +7,7 @@ import (
 )
 
 func (s *Service) Delete(w http.ResponseWriter, r *http.Request) {
-	blockIDs, err := s.DeleteBlockID(r.Context(), r.URL.Path)
+	blockIDs, err := s.Repository.Delete(r.Context(), r.URL.Path)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 	} else if len(blockIDs) == 0 {
@@ -18,7 +18,7 @@ func (s *Service) Delete(w http.ResponseWriter, r *http.Request) {
 			if blockID == uuid.Nil {
 				continue
 			}
-			_ = s.Purge(r.Context(), blockID.String())
+			_ = s.Storage.Purge(r.Context(), blockID.String())
 		}
 	}
 }

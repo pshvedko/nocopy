@@ -49,9 +49,7 @@ func (s *Service) Run(ctx context.Context, addr, port, base, file string, size i
 	s.Size = size
 	s.Handler = h
 	s.Addr = net.JoinHostPort(addr, port)
-	s.BaseContext = func(net.Listener) context.Context {
-		return ctx
-	}
+	s.BaseContext = func(net.Listener) context.Context { return ctx }
 	s.Add(1)
 	go s.WaitForContextCancel(ctx)
 	return s.ListenAndServe()

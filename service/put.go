@@ -13,14 +13,14 @@ import (
 
 func (s *Service) Put(w http.ResponseWriter, r *http.Request) {
 	var blocks []block.Block
-	fileID, err := s.AddFileID(r.Context(), r.URL.Path)
+	fileID, err := s.Repository.Put(r.Context(), r.URL.Path)
 	for err == nil {
 		blockID := uuid.New()
 		hash := sha1.New()
 		body := io.LimitReader(r.Body, s.Size)
 		body = util.HashReader(hash, body)
 		var size int64
-		size, err = s.Store(r.Context(), blockID.String(), min(r.ContentLength, s.Size), body)
+		size, err = s.Storage.Store(r.Context(), blockID.String(), min(r.ContentLength, s.Size), body)
 		if err != nil {
 			break
 		} else if r.ContentLength > 0 {
@@ -33,7 +33,7 @@ func (s *Service) Put(w http.ResponseWriter, r *http.Request) {
 		})
 		if size < s.Size {
 			var chainIDs []uuid.UUID
-			chainIDs, err = s.SetChainID(r.Context(), fileID, blocks)
+			chainIDs, err = s.Repository.Update(r.Context(), fileID, blocks)
 			if err == nil {
 				w.WriteHeader(http.StatusCreated)
 				s.Add(1)

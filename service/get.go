@@ -8,7 +8,7 @@ import (
 )
 
 func (s *Service) Get(w http.ResponseWriter, r *http.Request) {
-	mime, date, size, blockIDs, err := s.GetBlockID(r.Context(), r.URL.Path)
+	mime, date, size, blockIDs, err := s.Repository.Get(r.Context(), r.URL.Path)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 	} else if len(blockIDs) == 0 {
@@ -22,7 +22,7 @@ func (s *Service) Get(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		for _, blockID := range blockIDs {
 			if func() (err error) {
-				body, err := s.Load(r.Context(), blockID.String())
+				body, err := s.Storage.Load(r.Context(), blockID.String())
 				if err != nil {
 					return
 				}

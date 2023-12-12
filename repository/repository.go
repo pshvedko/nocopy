@@ -13,10 +13,10 @@ import (
 )
 
 type Repository interface {
-	AddFileID(context.Context, string) (uuid.UUID, error)
-	GetBlockID(context.Context, string) (string, time.Time, int64, []uuid.UUID, error)
-	SetChainID(context.Context, uuid.UUID, []block.Block) ([]uuid.UUID, error)
-	DeleteBlockID(context.Context, string) ([]uuid.UUID, error)
+	Put(context.Context, string) (uuid.UUID, error)
+	Get(context.Context, string) (string, time.Time, int64, []uuid.UUID, error)
+	Update(context.Context, uuid.UUID, []block.Block) ([]uuid.UUID, error)
+	Delete(context.Context, string) ([]uuid.UUID, error)
 	Shutdown(ctx context.Context) error
 }
 
