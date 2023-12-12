@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/url"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -13,7 +14,7 @@ import (
 
 type Repository interface {
 	AddFileID(context.Context, string) (uuid.UUID, error)
-	GetBlockID(context.Context, string) (*string, int64, []uuid.UUID, error)
+	GetBlockID(context.Context, string) (string, time.Time, int64, []uuid.UUID, error)
 	SetChainID(context.Context, uuid.UUID, []block.Block) ([]uuid.UUID, error)
 }
 

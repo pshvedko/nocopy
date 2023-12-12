@@ -40,6 +40,7 @@ func (s *Service) Run(ctx context.Context, addr, port, base, file string, size i
 		return err
 	}
 	h := chi.NewRouter()
+	h.Use(middleware.SetHeader("Server", "NoCopy"))
 	h.Use(middleware.Logger)
 	h.Use(middleware.Recoverer)
 	h.Put("/*", s.Put)

@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"net/url"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
@@ -16,7 +17,7 @@ const (
 	addBlockQuery = `insert into blocks (id, hash, size) values ($1, $2, $3)`
 	addLinkQuery  = `insert into links (chain_id, block_id, ordinal) values ($1, $2, $3)`
 	setChainID    = `update files set chain_id = $2 from (select id, chain_id from files where id = $1 for update) as oldies where files.id = oldies.id returning oldies.chain_id`
-	getBlockQuery = `select block_id, ordinal, size, mime from files join chains on chains.id = files.chain_id join links on chains.id = links.chain_id join blocks on blocks.id = links.block_id where path = $1`
+	getBlockQuery = `select block_id, ordinal, size, mime, created from files join chains on chains.id = files.chain_id join links on chains.id = links.chain_id join blocks on blocks.id = links.block_id where path = $1`
 )
 
 type Repository struct {
@@ -24,7 +25,7 @@ type Repository struct {
 	*sqlx.DB
 }
 
-func (r Repository) GetBlockID(ctx context.Context, name string) (mime *string, length int64, blockIDs []uuid.UUID, err error) {
+func (r Repository) GetBlockID(ctx context.Context, name string) (mime string, date time.Time, length int64, blockIDs []uuid.UUID, err error) {
 	var rows *sqlx.Rows
 	rows, err = r.QueryxContext(ctx, getBlockQuery, name)
 	if err != nil {
@@ -45,7 +46,7 @@ func (r Repository) GetBlockID(ctx context.Context, name string) (mime *string, 
 		var blockID uuid.UUID
 		var ordinal int
 		var size int64
-		err = rows.Scan(&blockID, &ordinal, &size, &mime)
+		err = rows.Scan(&blockID, &ordinal, &size, &mime, &date)
 		if err != nil {
 			break
 		}
