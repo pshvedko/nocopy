@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -148,8 +149,16 @@ func New(ur1 *url.URL) (*Repository, error) {
 	if err != nil {
 		return nil, err
 	}
-	db.SetMaxOpenConns(16)
-	db.SetMaxIdleConns(8)
+	maxOpenConn, err := strconv.Atoi(ur1.Query().Get("max_open"))
+	if err != nil {
+		maxOpenConn = 16
+	}
+	maxIdleConn, err := strconv.Atoi(ur1.Query().Get("max_idle"))
+	if err != nil {
+		maxOpenConn = maxOpenConn / 4 * 3
+	}
+	db.SetMaxOpenConns(maxOpenConn)
+	db.SetMaxIdleConns(maxIdleConn)
 	return &Repository{
 		URL: ur1,
 		DB:  db,
