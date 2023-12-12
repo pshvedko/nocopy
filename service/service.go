@@ -45,6 +45,7 @@ func (s *Service) Run(ctx context.Context, addr, port, base, file string, size i
 	h.Use(middleware.Recoverer)
 	h.Put("/*", s.Put)
 	h.Get("/*", s.Get)
+	h.Delete("/*", s.Delete)
 	s.Size = size
 	s.Handler = h
 	s.Addr = net.JoinHostPort(addr, port)
@@ -57,9 +58,11 @@ func (s *Service) Run(ctx context.Context, addr, port, base, file string, size i
 }
 
 func (s *Service) WaitForContextCancel(ctx context.Context) {
-	defer s.Done()
 	<-ctx.Done()
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
-	_ = s.Shutdown(ctx)
+	_ = s.Server.Shutdown(ctx)
+	s.Done()
+	_ = s.Storage.Shutdown(ctx)
+	_ = s.Repository.Shutdown(ctx)
 }

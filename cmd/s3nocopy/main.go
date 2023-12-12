@@ -28,7 +28,7 @@ func main() {
 
 	c := &cobra.Command{
 		Use:  "s3nocopy",
-		Long: "S3 compatible copy less proxy service",
+		Long: "S3 (not yet) compatible copy less proxy service",
 		RunE: func(*cobra.Command, []string) error {
 			err := s.Run(ctx, addrFlag, portFlag, baseFlag, fileFlag, sizeFlag)
 			switch {

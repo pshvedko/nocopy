@@ -12,6 +12,8 @@ import (
 type Storage interface {
 	Store(context.Context, string, int64, io.Reader) (int64, error)
 	Load(context.Context, string) (io.ReadSeekCloser, error)
+	Purge(context.Context, string) error
+	Shutdown(ctx context.Context) error
 }
 
 func New(name string) (Storage, error) {

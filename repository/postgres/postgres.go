@@ -2,6 +2,8 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"net/url"
 	"time"
 
@@ -12,12 +14,17 @@ import (
 )
 
 const (
-	getFileQuery  = `insert into files (path) values ($1) on conflict (path) do update set version = files.version+1 returning id`
-	addChainQuery = `insert into chains select returning id`
-	addBlockQuery = `insert into blocks (id, hash, size) values ($1, $2, $3)`
-	addLinkQuery  = `insert into links (chain_id, block_id, ordinal) values ($1, $2, $3)`
-	setChainID    = `update files set chain_id = $2 from (select id, chain_id from files where id = $1 for update) as oldies where files.id = oldies.id returning oldies.chain_id`
-	getBlockQuery = `select block_id, ordinal, size, mime, created from files join chains on chains.id = files.chain_id join links on chains.id = links.chain_id join blocks on blocks.id = links.block_id where path = $1`
+	getFileQuery     = `insert into files (path) values ($1) on conflict (path) do update set version = files.version + 1 returning id`
+	addChainQuery    = `insert into chains select returning id`
+	addBlockQuery    = `insert into blocks (id, hash, size) values ($1, $2, $3)`
+	addLinkQuery     = `insert into links (chain_id, block_id, ordinal) values ($1, $2, $3)`
+	setChainID       = `update files set chain_id = $2 from (select id, chain_id from files where id = $1 for update) as oldies where files.id = oldies.id returning oldies.chain_id`
+	getBlockQuery    = `select block_id, ordinal, size, mime, created from files join chains on chains.id = files.chain_id join links on chains.id = links.chain_id join blocks on blocks.id = links.block_id where path = $1`
+	deleteFileQuery  = `delete from files where path = $1 returning chain_id`
+	deleteLinkQuery  = `delete from links where chain_id = $1 returning block_id`
+	setBlockQuery    = `update blocks set refer = refer - 1 where id = $1 returning refer`
+	deleteBlockQuery = `delete from blocks where id = $1 and refer = 0`
+	deleteChainQuery = `delete from chains where id = $1`
 )
 
 type Repository struct {
@@ -25,21 +32,65 @@ type Repository struct {
 	*sqlx.DB
 }
 
-func (r Repository) GetBlockID(ctx context.Context, name string) (mime string, date time.Time, length int64, blockIDs []uuid.UUID, err error) {
-	var rows *sqlx.Rows
-	rows, err = r.QueryxContext(ctx, getBlockQuery, name)
+func (r Repository) DeleteBlockID(ctx context.Context, name string) (blockIDs []uuid.UUID, err error) {
+	var blockID uuid.UUID
+	var chainID uuid.UUID
+	err = r.GetContext(ctx, &chainID, deleteFileQuery, name)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			err = nil
+		}
+		return
+	}
+	rows, err := r.QueryContext(ctx, deleteLinkQuery, chainID)
 	if err != nil {
 		return
 	}
 	defer func() {
-		err2 := rows.Err()
-		if err2 != nil {
-			err = err2
+		_ = rows.Close()
+	}()
+	for rows.Next() {
+		err = rows.Scan(&blockID)
+		if err != nil {
+			break
 		}
-		err2 = rows.Close()
-		if err2 != nil {
-			err = err2
+		blockIDs = append(blockIDs, blockID)
+	}
+	err = rows.Err()
+	if err != nil {
+		return
+	}
+	var i int
+	var refer int
+	for i, blockID = range blockIDs {
+		err = r.GetContext(ctx, &refer, setBlockQuery, blockID)
+		if err != nil {
+			return
 		}
+		if refer != 0 {
+			blockIDs[i] = uuid.Nil
+			continue
+		}
+		_, err = r.ExecContext(ctx, deleteBlockQuery, blockID)
+		if err != nil {
+			return
+		}
+	}
+	_, err = r.ExecContext(ctx, deleteChainQuery, chainID)
+	return
+}
+
+func (r Repository) Shutdown(context.Context) error {
+	return r.Close()
+}
+
+func (r Repository) GetBlockID(ctx context.Context, name string) (mime string, date time.Time, length int64, blockIDs []uuid.UUID, err error) {
+	rows, err := r.QueryContext(ctx, getBlockQuery, name)
+	if err != nil {
+		return
+	}
+	defer func() {
+		_ = rows.Close()
 	}()
 	var ordinals []int
 	for rows.Next() {
@@ -53,6 +104,10 @@ func (r Repository) GetBlockID(ctx context.Context, name string) (mime string, d
 		length += size
 		blockIDs = append(blockIDs, blockID)
 		ordinals = append(ordinals, ordinal)
+	}
+	err = rows.Err()
+	if err != nil {
+		return
 	}
 	for i, j := range ordinals {
 		if i > j {
