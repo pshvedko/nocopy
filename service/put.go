@@ -48,7 +48,8 @@ func (s *Service) Put(w http.ResponseWriter, r *http.Request) {
 
 func (s *Service) Copy(ctx context.Context, chains []uuid.UUID, blocks []uuid.UUID, hashes [][]byte, sizes []int64) {
 	defer s.Done()
-	slog.Error("copy", "chains", chains, "blocks", blocks, "sizes", sizes)
+	defer slog.Warn("copy done")
+	slog.Warn("copy", "chains", chains, "blocks", blocks, "sizes", sizes)
 	for i := range blocks {
 		similarities, err := s.Repository.Lookup(ctx, blocks[i], hashes[i], sizes[i])
 		if err != nil {
@@ -78,10 +79,11 @@ func (s *Service) Copy(ctx context.Context, chains []uuid.UUID, blocks []uuid.UU
 					_, _ = origin.Seek(0, 0)
 				}
 				if util.Compare(origin, similar) {
-					slog.Warn("copy compare", "a", blocks[i], "b", similarities[j])
+					slog.Warn("copy equal", "blocks", []uuid.UUID{blocks[i], similarities[j]})
 
 					err = s.Repository.Link(ctx, chains[0], blocks[i], similarities[j])
 					if err == nil {
+						slog.Warn("copy purge", "block", blocks[i])
 						_ = origin.Close()
 						_ = similar.Close()
 						_ = s.Storage.Purge(ctx, blocks[i].String())
@@ -98,14 +100,19 @@ func (s *Service) Copy(ctx context.Context, chains []uuid.UUID, blocks []uuid.UU
 		}
 		_ = origin.Close()
 	}
-	if chains[1] != uuid.Nil {
+	if chains[1] == uuid.Nil {
 		return
 	}
 	oldies, err := s.Repository.Break(ctx, chains[1])
 	if err != nil {
+		slog.Error("copy link", "chain", chains[1], "err", err)
 		return
 	}
 	for i := range oldies {
+		if oldies[i] == uuid.Nil {
+			continue
+		}
+		slog.Warn("copy purge", "block", oldies[i])
 		_ = s.Storage.Purge(ctx, oldies[i].String())
 	}
 }

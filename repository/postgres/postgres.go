@@ -33,12 +33,6 @@ type Repository struct {
 	*sqlx.DB
 }
 
-func (r Repository) Break(ctx context.Context, cid uuid.UUID) (blocks []uuid.UUID, err error) {
-
-	// TODO
-	return
-}
-
 func (r Repository) Link(ctx context.Context, cid uuid.UUID, bid1 uuid.UUID, bid2 uuid.UUID) error {
 	var refer int
 	err := r.GetContext(ctx, &refer, query09, bid2, +1)
@@ -73,7 +67,6 @@ func (r Repository) Lookup(ctx context.Context, bid uuid.UUID, hash []byte, size
 }
 
 func (r Repository) Delete(ctx context.Context, name string) (blocks []uuid.UUID, err error) {
-	var bid uuid.UUID
 	var cid uuid.UUID
 	err = r.GetContext(ctx, &cid, query07, name)
 	if err != nil {
@@ -82,6 +75,11 @@ func (r Repository) Delete(ctx context.Context, name string) (blocks []uuid.UUID
 		}
 		return
 	}
+	return r.Break(ctx, cid)
+}
+
+func (r Repository) Break(ctx context.Context, cid uuid.UUID) (blocks []uuid.UUID, err error) {
+	var bid uuid.UUID
 	rows, err := r.QueryContext(ctx, query08, cid)
 	if err != nil {
 		return
@@ -143,6 +141,7 @@ func (r Repository) Get(ctx context.Context, name string) (mime string, date tim
 			break
 		}
 		length += size
+		n++
 	}
 	err = rows.Err()
 	if err != nil {
