@@ -24,7 +24,7 @@ const (
 	query09 = `update blocks set refer = refer + $2 where id = $1 returning refer`
 	query10 = `delete from blocks where id = $1 and refer = $2`
 	query11 = `delete from chains where id = $1`
-	query12 = `select id from blocks where hash = $1 and size = $2 and id <> $3;`
+	query12 = `select id from blocks where hash = $1 and size = $2 and id <> $3 order by updated desc, refer desc`
 	query13 = `update links set block_id = $3 where chain_id = $1 and block_id = $2`
 )
 
