@@ -77,6 +77,7 @@ func (s *Service) deduplicate(ctx context.Context, chains []uuid.UUID, blocks []
 					continue
 				}
 				if n > 0 {
+					slog.Warn("copy seek")
 					_, _ = origin.Seek(0, 0)
 				}
 				if util.Compare(origin, similar) {
