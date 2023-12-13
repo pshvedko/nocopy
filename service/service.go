@@ -61,6 +61,11 @@ func (s *Service) WaitForContextCancel(ctx context.Context) {
 	defer cancel()
 	_ = s.Server.Shutdown(ctx)
 	s.Done()
+	s.Wait()
 	_ = s.Storage.Shutdown(ctx)
 	_ = s.Repository.Shutdown(ctx)
+}
+
+func (s *Service) Context() context.Context {
+	return s.BaseContext(nil)
 }

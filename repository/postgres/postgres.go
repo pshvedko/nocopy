@@ -34,8 +34,9 @@ type Repository struct {
 }
 
 func (r Repository) Break(ctx context.Context, cid uuid.UUID) (blocks []uuid.UUID, err error) {
-	//TODO implement me
-	panic("implement me")
+
+	// TODO
+	return
 }
 
 func (r Repository) Link(ctx context.Context, cid uuid.UUID, bid1 uuid.UUID, bid2 uuid.UUID) error {

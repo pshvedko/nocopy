@@ -4,11 +4,12 @@ import (
 	"context"
 	"crypto/sha1"
 	"io"
+	"log/slog"
 	"net/http"
 
 	"github.com/google/uuid"
 
-	"github.com/pshvedko/nocopy/service/util"
+	"github.com/pshvedko/nocopy/util"
 )
 
 func (s *Service) Put(w http.ResponseWriter, r *http.Request) {
@@ -37,7 +38,7 @@ func (s *Service) Put(w http.ResponseWriter, r *http.Request) {
 			if err == nil {
 				w.WriteHeader(http.StatusCreated)
 				s.Add(1)
-				go s.Copy(r.Context(), chains, blocks, hashes, sizes)
+				go s.Copy(s.Context(), chains, blocks, hashes, sizes)
 				return
 			}
 		}
@@ -47,17 +48,21 @@ func (s *Service) Put(w http.ResponseWriter, r *http.Request) {
 
 func (s *Service) Copy(ctx context.Context, chains []uuid.UUID, blocks []uuid.UUID, hashes [][]byte, sizes []int64) {
 	defer s.Done()
+	slog.Error("copy", "chains", chains, "blocks", blocks, "sizes", sizes)
 	for i := range blocks {
 		similarities, err := s.Repository.Lookup(ctx, blocks[i], hashes[i], sizes[i])
 		if err != nil {
+			slog.Error("copy lookup", "err", err)
 			continue
 		}
+		slog.Warn("copy lookup", "similarities", similarities)
 		if len(similarities) == 0 {
 			continue
 		}
 		var origin io.ReadSeekCloser
 		origin, err = s.Storage.Load(ctx, blocks[i].String())
 		if err != nil {
+			slog.Error("copy load", "name", blocks[i], "err", err)
 			continue
 		}
 		if func() bool {
@@ -66,12 +71,15 @@ func (s *Service) Copy(ctx context.Context, chains []uuid.UUID, blocks []uuid.UU
 				var similar io.ReadCloser
 				similar, err = s.Storage.Load(ctx, similarities[j].String())
 				if err != nil {
+					slog.Error("copy load", "name", similarities[j], "err", err)
 					continue
 				}
 				if n > 0 {
 					_, _ = origin.Seek(0, 0)
 				}
 				if util.Compare(origin, similar) {
+					slog.Warn("copy compare", "a", blocks[i], "b", similarities[j])
+
 					err = s.Repository.Link(ctx, chains[0], blocks[i], similarities[j])
 					if err == nil {
 						_ = origin.Close()
@@ -79,6 +87,7 @@ func (s *Service) Copy(ctx context.Context, chains []uuid.UUID, blocks []uuid.UU
 						_ = s.Storage.Purge(ctx, blocks[i].String())
 						return true
 					}
+					slog.Error("copy link", "chain", chains[0], "a", blocks[i], "b", similarities[j], "err", err)
 				}
 				_ = similar.Close()
 				n++
@@ -88,6 +97,9 @@ func (s *Service) Copy(ctx context.Context, chains []uuid.UUID, blocks []uuid.UU
 			continue
 		}
 		_ = origin.Close()
+	}
+	if chains[1] != uuid.Nil {
+		return
 	}
 	oldies, err := s.Repository.Break(ctx, chains[1])
 	if err != nil {
