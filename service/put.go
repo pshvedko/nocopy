@@ -3,11 +3,12 @@ package service
 import (
 	"context"
 	"crypto/sha1"
+	"io"
 	"net/http"
 
 	"github.com/google/uuid"
 
-	"github.com/pshvedko/nocopy/service/io"
+	"github.com/pshvedko/nocopy/service/util"
 )
 
 func (s *Service) Put(w http.ResponseWriter, r *http.Request) {
@@ -19,7 +20,7 @@ func (s *Service) Put(w http.ResponseWriter, r *http.Request) {
 		bid := uuid.New()
 		hash := sha1.New()
 		body := io.LimitReader(r.Body, s.Size)
-		body = io.CopyReader(body, hash)
+		body = io.TeeReader(body, hash)
 		var size int64
 		size, err = s.Storage.Store(r.Context(), bid.String(), min(r.ContentLength, s.Size), body)
 		if err != nil {
@@ -70,7 +71,7 @@ func (s *Service) Copy(ctx context.Context, chains []uuid.UUID, blocks []uuid.UU
 				if n > 0 {
 					_, _ = origin.Seek(0, 0)
 				}
-				if io.Compare(origin, similar) {
+				if util.Compare(origin, similar) {
 					err = s.Repository.Link(ctx, chains[0], blocks[i], similarities[j])
 					if err == nil {
 						_ = origin.Close()
