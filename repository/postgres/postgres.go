@@ -17,13 +17,13 @@ const (
 	query04 = `insert into links (chain_id, block_id, ordinal) values ($1, $2, $3)`
 	query05 = `update files set chain_id = $2 from (select id, chain_id from files where id = $1 for update) as oldies where files.id = oldies.id returning oldies.chain_id`
 	query06 = `select block_id, ordinal, size, mime, created from files join chains on chains.id = files.chain_id join links on chains.id = links.chain_id join blocks on blocks.id = links.block_id where path = $1`
-	query07 = `delete from files where path = $1 returning chain_id`
-	query08 = `delete from links where chain_id = $1 returning block_id`
-	query09 = `update blocks set refer = refer + $2 where id = $1 returning refer`
-	query10 = `delete from blocks where id = $1 and refer = $2`
-	query11 = `delete from chains where id = $1`
-	query12 = `select id from blocks where hash = $1 and size = $2 order by refer desc, updated asc, id asc`
-	query13 = `update links set block_id = $3 where chain_id = $1 and block_id = $2`
+	//query07 = `delete from files where path = $1 returning chain_id`
+	//query08 = `delete from links where chain_id = $1 returning block_id`
+	//query09 = `update blocks set refer = refer + $2 where id = $1 returning refer`
+	//query10 = `delete from blocks where id = $1 and refer = $2`
+	//query11 = `delete from chains where id = $1`
+	//query12 = `select id from blocks where hash = $1 and size = $2 order by refer desc, updated asc, id asc`
+	//query13 = `update links set block_id = $3 where chain_id = $1 and block_id = $2`
 )
 
 type Repository struct {
