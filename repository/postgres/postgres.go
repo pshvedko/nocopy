@@ -2,8 +2,6 @@ package postgres
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"net/url"
 	"strconv"
 	"time"
@@ -33,6 +31,27 @@ type Repository struct {
 	*sqlx.DB
 }
 
+func (r Repository) Link(ctx context.Context, cid uuid.UUID, bid1 uuid.UUID, bid2 uuid.UUID) error {
+	_, err := r.ExecContext(ctx, "call block_update($1, $2, $3)", cid, bid1, bid2)
+	return err
+}
+
+func (r Repository) Lookup(ctx context.Context, hash []byte, size int64) (blocks []uuid.UUID, err error) {
+	err = r.SelectContext(ctx, &blocks, "select * from block_select($1, $2)", hash, size)
+	return
+}
+
+func (r Repository) Break(ctx context.Context, cid uuid.UUID) (blocks []uuid.UUID, err error) {
+	err = r.SelectContext(ctx, &blocks, "select * from chain_delete($1)", cid)
+	return
+}
+
+func (r Repository) Delete(ctx context.Context, path string) (blocks []uuid.UUID, err error) {
+	err = r.SelectContext(ctx, &blocks, "select * from file_delete($1)", path)
+	return
+}
+
+/*
 func (r Repository) Link(ctx context.Context, cid uuid.UUID, bid1 uuid.UUID, bid2 uuid.UUID) error {
 	var refer int
 	err := r.GetContext(ctx, &refer, query09, bid2, +1)
@@ -118,10 +137,7 @@ func (r Repository) Break(ctx context.Context, cid uuid.UUID) (blocks []uuid.UUI
 	_, err = r.ExecContext(ctx, query11, cid)
 	return
 }
-
-func (r Repository) Shutdown(context.Context) error {
-	return r.Close()
-}
+*/
 
 func (r Repository) Get(ctx context.Context, name string) (mime string, date time.Time, length int64, blocks []uuid.UUID, err error) {
 	rows, err := r.QueryContext(ctx, query06, name)
@@ -180,6 +196,10 @@ func (r Repository) Put(ctx context.Context, name string) (uuid.UUID, error) {
 	var id uuid.UUID
 	err := r.GetContext(ctx, &id, query01, name)
 	return id, err
+}
+
+func (r Repository) Shutdown(context.Context) error {
+	return r.Close()
 }
 
 func New(ur1 *url.URL) (*Repository, error) {

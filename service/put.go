@@ -90,7 +90,7 @@ func (s *Service) deduplicate(ctx context.Context, chains []uuid.UUID, blocks []
 						_ = s.Storage.Purge(ctx, blocks[i].String())
 						return false
 					}
-					slog.Error("copy link", "chain", chains[0], "a", blocks[i], "b", similarities[j], "err", err)
+					slog.Error("copy link", "chain", chains[0], "blocks", []uuid.UUID{blocks[i], similarities[j]}, "err", err)
 				}
 				_ = similar.Close()
 				n++
