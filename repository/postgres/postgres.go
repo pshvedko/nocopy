@@ -2,12 +2,11 @@ package postgres
 
 import (
 	"context"
+	"github.com/google/uuid"
+	"github.com/jmoiron/sqlx"
 	"net/url"
 	"strconv"
 	"time"
-
-	"github.com/google/uuid"
-	"github.com/jmoiron/sqlx"
 )
 
 const (
@@ -16,7 +15,7 @@ const (
 	query03 = `insert into blocks (id, hash, size) values ($1, $2, $3)`
 	query04 = `insert into links (chain_id, block_id, ordinal) values ($1, $2, $3)`
 	query05 = `update files set chain_id = $2 from (select id, chain_id from files where id = $1 for update) as oldies where files.id = oldies.id returning oldies.chain_id`
-	query06 = `select block_id, ordinal, size, mime, created from files join chains on chains.id = files.chain_id join links on chains.id = links.chain_id join blocks on blocks.id = links.block_id where path = $1`
+	//query06 = `select block_id, ordinal, size, mime, created from files join chains on chains.id = files.chain_id join links on chains.id = links.chain_id join blocks on blocks.id = links.block_id where path = $1`
 	//query07 = `delete from files where path = $1 returning chain_id`
 	//query08 = `delete from links where chain_id = $1 returning block_id`
 	//query09 = `update blocks set refer = refer + $2 where id = $1 returning refer`
@@ -139,39 +138,6 @@ func (r Repository) Break(ctx context.Context, cid uuid.UUID) (blocks []uuid.UUI
 }
 */
 
-func (r Repository) Get(ctx context.Context, name string) (mime string, date time.Time, length int64, blocks []uuid.UUID, err error) {
-	rows, err := r.QueryContext(ctx, query06, name)
-	if err != nil {
-		return
-	}
-	defer func() {
-		_ = rows.Close()
-	}()
-	var n int
-	var size int64
-	var ordinals []int
-	for rows.Next() {
-		blocks = append(blocks, uuid.UUID{})
-		ordinals = append(ordinals, n)
-		err = rows.Scan(&blocks[n], &ordinals[n], &size, &mime, &date)
-		if err != nil {
-			break
-		}
-		length += size
-		n++
-	}
-	err = rows.Err()
-	if err != nil {
-		return
-	}
-	for i, j := range ordinals {
-		if i > j {
-			blocks[i], blocks[j] = blocks[j], blocks[i]
-		}
-	}
-	return
-}
-
 func (r Repository) Update(ctx context.Context, fid uuid.UUID, blocks []uuid.UUID, hashes [][]byte, sizes []int64) ([]uuid.UUID, error) {
 	var chains [2]uuid.UUID
 	err := r.GetContext(ctx, &chains[0], query02)
@@ -196,6 +162,39 @@ func (r Repository) Put(ctx context.Context, name string) (uuid.UUID, error) {
 	var id uuid.UUID
 	err := r.GetContext(ctx, &id, query01, name)
 	return id, err
+}
+
+func (r Repository) Get(ctx context.Context, name string) (mime string, date time.Time, length int64, blocks []uuid.UUID, err error) {
+	rows, err := r.QueryContext(ctx, "select * from file_select($1)", name)
+	if err != nil {
+		return
+	}
+	defer func() {
+		_ = rows.Close()
+	}()
+	var n int
+	var size int64
+	var ordinals []int
+	for rows.Next() {
+		ordinals = append(ordinals, n)
+		blocks = append(blocks, uuid.UUID{})
+		err = rows.Scan(&blocks[n], &ordinals[n], &size, &mime, &date)
+		if err != nil {
+			break
+		}
+		length += size
+		n++
+	}
+	err = rows.Err()
+	if err != nil {
+		return
+	}
+	for i, j := range ordinals {
+		if i > j {
+			blocks[i], blocks[j] = blocks[j], blocks[i]
+		}
+	}
+	return
 }
 
 func (r Repository) Shutdown(context.Context) error {
