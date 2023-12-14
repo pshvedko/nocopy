@@ -31,8 +31,8 @@ type Repository struct {
 	*sqlx.DB
 }
 
-func (r Repository) Link(ctx context.Context, cid uuid.UUID, bid1 uuid.UUID, bid2 uuid.UUID) (ok bool, err error) {
-	err = r.GetContext(ctx, &ok, "call block_update($1, $2, $3, false)", cid, bid1, bid2)
+func (r Repository) Link(ctx context.Context, cid uuid.UUID, bid1 uuid.UUID, bid2 uuid.UUID) (err error) {
+	_, err = r.ExecContext(ctx, "call block_update($1, $2, $3)", cid, bid1, bid2)
 	return
 }
 

@@ -82,9 +82,8 @@ func (s *Service) deduplicate(ctx context.Context, chains []uuid.UUID, blocks []
 				}
 				if util.Compare(origin, similar) {
 					slog.Warn("copy equal", "blocks", []uuid.UUID{blocks[i], similarities[j]})
-					var ok bool
-					ok, err = s.Repository.Link(ctx, chains[0], blocks[i], similarities[j])
-					if ok {
+					err = s.Repository.Link(ctx, chains[0], blocks[i], similarities[j])
+					if err == nil {
 						slog.Warn("copy purge", "block", blocks[i])
 						_ = origin.Close()
 						_ = similar.Close()
