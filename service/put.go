@@ -37,15 +37,16 @@ func (s *Service) Put(w http.ResponseWriter, r *http.Request) {
 			chains, err = s.Repository.Update(r.Context(), file, blocks, hashes, sizes)
 			if err == nil {
 				w.WriteHeader(http.StatusCreated)
-				s.deduplicate(r.Context(), chains, blocks, hashes, sizes)
+				s.copy(r.Context(), chains, blocks, hashes, sizes)
 				return
 			}
+			slog.Error("put update", "err", err)
 		}
 	}
 	w.WriteHeader(http.StatusInternalServerError)
 }
 
-func (s *Service) deduplicate(ctx context.Context, chains []uuid.UUID, blocks []uuid.UUID, hashes [][]byte, sizes []int64) {
+func (s *Service) copy(ctx context.Context, chains []uuid.UUID, blocks []uuid.UUID, hashes [][]byte, sizes []int64) {
 	defer slog.Warn("copy done")
 	slog.Warn("copy", "chains", chains, "blocks", blocks, "sizes", sizes)
 	for i := range blocks {

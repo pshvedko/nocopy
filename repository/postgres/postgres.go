@@ -2,27 +2,28 @@ package postgres
 
 import (
 	"context"
-	"github.com/google/uuid"
-	"github.com/jmoiron/sqlx"
 	"net/url"
 	"strconv"
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/jmoiron/sqlx"
 )
 
 const (
-	query01 = `insert into files (path) values ($1) on conflict (path) do update set version = files.version + 1 returning id`
-	query02 = `insert into chains select returning id`
-	query03 = `insert into blocks (id, hash, size) values ($1, $2, $3)`
-	query04 = `insert into links (chain_id, block_id, ordinal) values ($1, $2, $3)`
-	query05 = `update files set chain_id = $2 from (select id, chain_id from files where id = $1 for update) as oldies where files.id = oldies.id returning oldies.chain_id`
-	//query06 = `select block_id, ordinal, size, mime, created from files join chains on chains.id = files.chain_id join links on chains.id = links.chain_id join blocks on blocks.id = links.block_id where path = $1`
-	//query07 = `delete from files where path = $1 returning chain_id`
-	//query08 = `delete from links where chain_id = $1 returning block_id`
-	//query09 = `update blocks set refer = refer + $2 where id = $1 returning refer`
-	//query10 = `delete from blocks where id = $1 and refer = $2`
-	//query11 = `delete from chains where id = $1`
-	//query12 = `select id from blocks where hash = $1 and size = $2 order by refer desc, updated asc, id asc`
-	//query13 = `update links set block_id = $3 where chain_id = $1 and block_id = $2`
+// query01 = `insert into files (path) values ($1) on conflict (path) do update set version = files.version + 1 returning id`
+// query02 = `insert into chains select returning id`
+// query03 = `insert into blocks (id, hash, size) values ($1, $2, $3)`
+// query04 = `insert into links (chain_id, block_id, ordinal) values ($1, $2, $3)`
+// query05 = `update files set chain_id = $2 from (select id, chain_id from files where id = $1 for update) as oldies where files.id = oldies.id returning oldies.chain_id`
+// query06 = `select block_id, ordinal, size, mime, created from files join chains on chains.id = files.chain_id join links on chains.id = links.chain_id join blocks on blocks.id = links.block_id where path = $1`
+// query07 = `delete from files where path = $1 returning chain_id`
+// query08 = `delete from links where chain_id = $1 returning block_id`
+// query09 = `update blocks set refer = refer + $2 where id = $1 returning refer`
+// query10 = `delete from blocks where id = $1 and refer = $2`
+// query11 = `delete from chains where id = $1`
+// query12 = `select id from blocks where hash = $1 and size = $2 order by refer desc, updated asc, id asc`
+// query13 = `update links set block_id = $3 where chain_id = $1 and block_id = $2`
 )
 
 type Repository struct {
@@ -30,8 +31,18 @@ type Repository struct {
 	*sqlx.DB
 }
 
+func (r Repository) Put(ctx context.Context, path string) (fid uuid.UUID, err error) {
+	err = r.GetContext(ctx, &fid, "select * from file_insert($1)", path)
+	return
+}
+
 func (r Repository) Link(ctx context.Context, cid uuid.UUID, bid1 uuid.UUID, bid2 uuid.UUID) (err error) {
 	_, err = r.ExecContext(ctx, "call block_update($1, $2, $3)", cid, bid1, bid2)
+	return
+}
+
+func (r Repository) Update(ctx context.Context, fid uuid.UUID, blocks []uuid.UUID, hashes [][]byte, sizes []int64) (chains []uuid.UUID, err error) {
+	err = r.SelectContext(ctx, &chains, "select * from block_insert($1, $2, $3, $4)", fid, blocks, hashes, sizes)
 	return
 }
 
@@ -41,7 +52,7 @@ func (r Repository) Lookup(ctx context.Context, hash []byte, size int64) (blocks
 }
 
 func (r Repository) Break(ctx context.Context, cid uuid.UUID) (blocks []uuid.UUID, err error) {
-	err = r.SelectContext(ctx, &blocks, "select * from chain_delete($1)", cid)
+	err = r.SelectContext(ctx, &blocks, "select * from block_delete($1)", cid)
 	return
 }
 
@@ -136,7 +147,6 @@ func (r Repository) Break(ctx context.Context, cid uuid.UUID) (blocks []uuid.UUI
 	_, err = r.ExecContext(ctx, query11, cid)
 	return
 }
-*/
 
 func (r Repository) Update(ctx context.Context, fid uuid.UUID, blocks []uuid.UUID, hashes [][]byte, sizes []int64) ([]uuid.UUID, error) {
 	var chains [2]uuid.UUID
@@ -163,6 +173,7 @@ func (r Repository) Put(ctx context.Context, name string) (uuid.UUID, error) {
 	err := r.GetContext(ctx, &id, query01, name)
 	return id, err
 }
+*/
 
 func (r Repository) Get(ctx context.Context, name string) (mime string, date time.Time, length int64, blocks []uuid.UUID, err error) {
 	rows, err := r.QueryContext(ctx, "select * from file_select($1)", name)
