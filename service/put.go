@@ -25,6 +25,7 @@ func (s *Service) Put(w http.ResponseWriter, r *http.Request) {
 		var size int64
 		size, err = s.Storage.Store(r.Context(), bid.String(), min(r.ContentLength, s.Size), body)
 		if err != nil {
+			slog.Error("put store", "err", err)
 			break
 		} else if r.ContentLength > 0 {
 			r.ContentLength -= size
