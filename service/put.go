@@ -3,13 +3,12 @@ package service
 import (
 	"context"
 	"crypto/sha1"
-	"io"
 	"log/slog"
 	"net/http"
 
 	"github.com/google/uuid"
 
-	"github.com/pshvedko/nocopy/util"
+	"github.com/pshvedko/nocopy/service/io"
 )
 
 func (s *Service) Put(w http.ResponseWriter, r *http.Request) {
@@ -18,17 +17,13 @@ func (s *Service) Put(w http.ResponseWriter, r *http.Request) {
 	var sizes []int64
 	file, err := s.Repository.Put(r.Context(), r.URL.Path)
 	for err == nil {
+		var size int64
 		bid := uuid.New()
 		hash := sha1.New()
-		body := io.LimitReader(r.Body, s.Size)
-		body = io.TeeReader(body, hash)
-		var size int64
-		size, err = s.Storage.Store(r.Context(), bid.String(), min(r.ContentLength, s.Size), body)
+		_, err = s.Storage.Store(r.Context(), bid.String(), -1, io.Compressor(r.Body, s.Size, &size, hash))
 		if err != nil {
 			slog.Error("put store", "err", err)
 			break
-		} else if r.ContentLength > 0 {
-			r.ContentLength -= size
 		}
 		blocks = append(blocks, bid)
 		hashes = append(hashes, hash.Sum([]byte{}))
@@ -82,7 +77,7 @@ func (s *Service) copy(ctx context.Context, chains []uuid.UUID, blocks []uuid.UU
 					slog.Warn("copy seek")
 					_, _ = origin.Seek(0, 0)
 				}
-				if util.Compare(origin, similar) {
+				if io.Compare(origin, similar) {
 					slog.Warn("copy equal", "blocks", []uuid.UUID{blocks[i], similarities[j]})
 					err = s.Repository.Link(ctx, chains[0], blocks[i], similarities[j])
 					if err == nil {

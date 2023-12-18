@@ -1,10 +1,13 @@
-package util
+package io
 
 import (
 	"bytes"
 	"errors"
 	"io"
 )
+
+type ReadSeekCloser = io.ReadSeekCloser
+type ReadCloser = io.ReadCloser
 
 func Compare(r1, r2 io.Reader) bool {
 	var b1, b2 [512]byte

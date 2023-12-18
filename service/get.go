@@ -1,10 +1,11 @@
 package service
 
 import (
-	"io"
 	"net/http"
 	"strconv"
 	"time"
+
+	"github.com/pshvedko/nocopy/service/io"
 )
 
 func (s *Service) Get(w http.ResponseWriter, r *http.Request) {
