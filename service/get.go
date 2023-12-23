@@ -36,17 +36,6 @@ func (s *Service) Get(w http.ResponseWriter, r *http.Request) {
 			offsets, lengths = blocksInFull(blocks, sizes)
 			break
 		case 1:
-			//var offset int64
-			//for i := range blocks {
-			//	offset += sizes[i]
-			//	if start < offset {
-			//		indexes = append(indexes, i)
-			//		blocks = blocks[i+1:]
-			//		break
-			//	}
-			//	sizes[i] = 0
-			//}
-
 			offsets, lengths = blocksOfRange(blocks, sizes, ranges[0])
 			size = ranges[0].Length
 			ranges = ranges[1:]
@@ -109,9 +98,14 @@ func (s *Service) Get(w http.ResponseWriter, r *http.Request) {
 }
 
 func blocksInFull(blocks []uuid.UUID, sizes []int64) (offsets [][]int64, lengths [][]int64) {
+	offsets = make([][]int64, len(blocks))
+	lengths = make([][]int64, len(blocks))
 	for i := range blocks {
-		offsets = append(offsets, []int64{0})
-		lengths = append(lengths, []int64{sizes[i]})
+		if sizes[i] == 0 {
+			continue
+		}
+		offsets[i] = append(offsets[i], 0)
+		lengths[i] = append(lengths[i], sizes[i])
 	}
 	return
 }
@@ -130,7 +124,7 @@ func blocksOfRange(blocks []uuid.UUID, sizes []int64, r http_range.Range) (offse
 	}
 	for {
 		if r.Start+r.Length <= size {
-			lengths[i] = append(lengths[i], min(size-r.Start, r.Length-size+sizes[i]+r.Start))
+			lengths[i] = append(lengths[i], min(r.Length, r.Length-size+sizes[i]+r.Start))
 			break
 		}
 		lengths[i] = append(lengths[i], sizes[i]-offsets[i][0])
