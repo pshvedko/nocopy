@@ -9,6 +9,7 @@ import (
 type ReadSeekCloser = io.ReadSeekCloser
 type ReadCloser = io.ReadCloser
 type Closer = io.Closer
+type Writer = io.Writer
 
 func Compare(r1, r2 io.Reader) bool {
 	var b1, b2 [512]byte

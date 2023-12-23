@@ -1,12 +1,13 @@
 package service
 
 import (
-	"github.com/google/uuid"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gotd/contrib/http_range"
 
 	"github.com/pshvedko/nocopy/service/io"
@@ -28,30 +29,55 @@ func (s *Service) Get(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusRequestedRangeNotSatisfiable)
 	} else {
 		slog.Warn("get", "range", ranges)
-		status := http.StatusOK
+		var part []string
+		var status int
+		var length int64
 		var offsets [][]int64
 		var lengths [][]int64
 		switch len(ranges) {
 		case 0:
+			length = size
+			status = http.StatusOK
 			offsets, lengths = blocksInFull(blocks, sizes)
-			break
 		case 1:
-			offsets, lengths = blocksOfRange(blocks, sizes, ranges[0])
-			size = ranges[0].Length
-			ranges = ranges[1:]
-			fallthrough
-		default:
+			length = ranges[0].Length
 			status = http.StatusPartialContent
+			offsets, lengths = blocksOfRange(blocks, sizes, ranges[0])
+		default:
+			length = 10000
+			status = http.StatusPartialContent
+			for n := range ranges {
+				o := offsets
+				l := lengths
+				offsets, lengths = blocksOfRange(blocks, sizes, ranges[n])
+				for i := range o {
+					offsets[i] = append(o[i], offsets[i]...)
+					lengths[i] = append(l[i], lengths[i]...)
+				}
+				//length += ranges[n].Length
+				//length += 1 + 2 + 20 + 1 + 13 + 1 + 1 + 14 + 1 + 5 + 1 + 1 + 1 + 1
+				//length += int64(len(p.Mime))
+				//length += digits(ranges[n].Start, ranges[n].Start+ranges[n].Length-1)
+			}
+			part = append(part, fmt.Sprintf("%020d", s.Uint64.Add(1)))
+			switch len(mime) {
+			case 0:
+				part = append(part, "application/octet-stream")
+			default:
+				part = append(part, mime)
+			}
+			mime = "multipart/byte" + "ranges; boundary=" + part[0]
 		}
-		w.Header().Add("Content-Length", strconv.FormatInt(size, 10))
+		w.Header().Add("Content-Length", strconv.FormatInt(length, 10))
 		w.Header().Add("Last-Modified", date.Format(time.RFC1123))
-		if len(mime) != 0 {
+		if len(mime) > 0 {
 			w.Header().Add("Content-Type", mime)
 		}
 		w.WriteHeader(status)
 		slog.Warn("get", "blocks", blocks, "sizes", sizes)
 		slog.Warn("get", "offsets", offsets)
 		slog.Warn("get", "lengths", lengths)
+		var m int64
 		for i, id := range blocks {
 			err = func() (err error) {
 				if len(offsets[i]) == 0 {
@@ -77,12 +103,22 @@ func (s *Service) Get(w http.ResponseWriter, r *http.Request) {
 						err = e
 					}
 				}(body)
+				var n int64
 				for j := range offsets[i] {
-					slog.Warn("get", "id", id, "offset", offsets[i][j], "length", lengths[i][j])
-					_, err = io.CopyRange(w, body, offsets[i][j], lengths[i][j])
-					if err != nil {
-						break
+					if len(part) == 2 && len(ranges) > 0 && m == 0 {
+						err = io.WritePartHeader(w, ranges[0].Start, ranges[0].Length, size, part[0], part[1])
+						if err != nil {
+							return
+						}
+						m = ranges[0].Length
+						ranges = ranges[1:]
 					}
+					slog.Warn("get", "id", id, "offset", offsets[i][j]-n, "length", lengths[i][j])
+					n, err = io.CopyRange(w, body, offsets[i][j]-n, lengths[i][j])
+					if err != nil {
+						return
+					}
+					m -= n
 				}
 				return
 			}()
@@ -91,7 +127,12 @@ func (s *Service) Get(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if err == nil {
-			return
+			if len(part) == 2 && len(ranges) == 0 && m == 0 {
+				err = io.WritePartFooter(w, part[0])
+			}
+			if err == nil {
+				return
+			}
 		}
 	}
 	slog.Error("get", "err", err)

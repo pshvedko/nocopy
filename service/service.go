@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -21,11 +22,15 @@ type Options struct {
 	DataBase      string
 }
 
+type Boundary struct {
+}
+
 type Service struct {
 	http.Server
 	sync.WaitGroup
 	storage.Storage
 	repository.Repository
+	atomic.Uint64
 	Size int64
 }
 
@@ -50,7 +55,7 @@ func (s *Service) Run(ctx context.Context, addr, port, base, file string, size i
 	s.Handler = h
 	s.Addr = net.JoinHostPort(addr, port)
 	s.BaseContext = func(net.Listener) context.Context { return ctx }
-	s.Add(1)
+	s.WaitGroup.Add(1)
 	go s.WaitForContextCancel(ctx)
 	return s.ListenAndServe()
 }
