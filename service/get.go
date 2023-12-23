@@ -46,14 +46,6 @@ func (s *Service) Get(w http.ResponseWriter, r *http.Request) {
 		default:
 			length = 26
 			status = http.StatusPartialContent
-			part = append(part, fmt.Sprintf("%020d", s.Uint64.Add(1)))
-			switch len(mime) {
-			case 0:
-				part = append(part, "application/octet-stream")
-			default:
-				part = append(part, mime)
-			}
-			mime = "multipart/byte" + "ranges; boundary=" + part[0]
 			for n := range ranges {
 				o := offsets
 				l := lengths
@@ -62,11 +54,17 @@ func (s *Service) Get(w http.ResponseWriter, r *http.Request) {
 					offsets[i] = append(o[i], offsets[i]...)
 					lengths[i] = append(l[i], lengths[i]...)
 				}
-				length += 64
+				length += 49
 				length += ranges[n].Length
-				length += int64(len(part[1]))
+				if len(mime) > 0 {
+					length += 15
+					length += int64(len(mime))
+				}
 				length += multipart.Digits(ranges[n].Start, ranges[n].Start+ranges[n].Length-1, size)
 			}
+			part = append(part, fmt.Sprintf("%020d", s.Uint64.Add(1)))
+			part = append(part, mime)
+			mime = "multipart/byte" + "ranges; boundary=" + part[0]
 		}
 		w.Header().Add("Content-Length", strconv.FormatInt(length, 10))
 		w.Header().Add("Last-Modified", date.Format(time.RFC1123))

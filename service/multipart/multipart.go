@@ -96,9 +96,11 @@ func WriteHeader(w io.Writer, offset, length, size int64, boundary, mime string)
 	if err != nil {
 		return
 	}
-	_, err = fmt.Fprintln(w, "Content-Type:", mime)
-	if err != nil {
-		return
+	if len(mime) > 0 {
+		_, err = fmt.Fprintln(w, "Content-Type:", mime)
+		if err != nil {
+			return
+		}
 	}
 	_, err = fmt.Fprintln(w, "Content-Range:", "bytes", fmt.Sprintf("%d-%d/%d", offset, offset+length-1, size))
 	if err != nil {
