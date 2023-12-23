@@ -8,6 +8,7 @@ import (
 
 type ReadSeekCloser = io.ReadSeekCloser
 type ReadCloser = io.ReadCloser
+type Closer = io.Closer
 
 func Compare(r1, r2 io.Reader) bool {
 	var b1, b2 [512]byte
@@ -30,4 +31,14 @@ func ReadBytes(r io.Reader, b []byte) (n int, err error) {
 		x, err = r.Read(b[n:])
 	}
 	return n, err
+}
+
+func CopyRange(w io.Writer, r io.ReadSeeker, o, n int64) (int64, error) {
+	if o > 0 {
+		_, err := r.Seek(o, io.SeekCurrent)
+		if err != nil {
+			return 0, err
+		}
+	}
+	return io.CopyN(w, r, n)
 }

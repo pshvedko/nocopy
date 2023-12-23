@@ -5,6 +5,7 @@ go 1.21.4
 require (
 	github.com/go-chi/chi/v5 v5.0.10
 	github.com/google/uuid v1.4.0
+	github.com/gotd/contrib v0.19.0
 	github.com/jackc/pgx/v5 v5.5.1
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/minio/minio-go/v7 v7.0.65
@@ -29,7 +30,7 @@ require (
 	github.com/spf13/pflag v1.0.5 // indirect
 	golang.org/x/crypto v0.14.0 // indirect
 	golang.org/x/net v0.17.0 // indirect
-	golang.org/x/sync v0.1.0 // indirect
+	golang.org/x/sync v0.2.0 // indirect
 	golang.org/x/sys v0.13.0 // indirect
 	golang.org/x/text v0.13.0 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect

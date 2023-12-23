@@ -2,12 +2,11 @@ package postgres
 
 import (
 	"context"
+	"github.com/google/uuid"
+	"github.com/jmoiron/sqlx"
 	"net/url"
 	"strconv"
 	"time"
-
-	"github.com/google/uuid"
-	"github.com/jmoiron/sqlx"
 )
 
 const (
@@ -175,7 +174,13 @@ func (r Repository) Put(ctx context.Context, name string) (uuid.UUID, error) {
 }
 */
 
-func (r Repository) Get(ctx context.Context, name string) (mime string, date time.Time, length int64, blocks []uuid.UUID, err error) {
+func (r Repository) Get(ctx context.Context, name string) (
+	mime string,
+	date time.Time,
+	length int64,
+	blocks []uuid.UUID,
+	sizes []int64,
+	err error) {
 	rows, err := r.QueryContext(ctx, "select * from file_select($1)", name)
 	if err != nil {
 		return
@@ -184,16 +189,16 @@ func (r Repository) Get(ctx context.Context, name string) (mime string, date tim
 		_ = rows.Close()
 	}()
 	var n int
-	var size int64
 	var ordinals []int
 	for rows.Next() {
 		ordinals = append(ordinals, n)
 		blocks = append(blocks, uuid.UUID{})
-		err = rows.Scan(&blocks[n], &ordinals[n], &size, &mime, &date)
+		sizes = append(sizes, length)
+		err = rows.Scan(&blocks[n], &ordinals[n], &sizes[n], &mime, &date)
 		if err != nil {
 			break
 		}
-		length += size
+		length += sizes[n]
 		n++
 	}
 	err = rows.Err()

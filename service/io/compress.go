@@ -47,13 +47,28 @@ func Compressor(r io.Reader, m int64, n *int64, w io.Writer) io.Reader {
 	return &c
 }
 
-func Copy(w io.Writer, r io.Reader) (int64, error) {
+type Decompress struct {
+	z io.ReadCloser
+}
+
+func (d Decompress) Read(b []byte) (n int, err error) {
+	return d.z.Read(b)
+}
+
+func (d Decompress) Seek(o int64, _ int) (int64, error) {
+	return io.CopyN(io.Discard, d.z, o)
+}
+
+func (d Decompress) Close() error {
+	return d.z.Close()
+}
+
+func Decompressor(r io.ReadSeekCloser) (io.ReadSeekCloser, error) {
 	z, err := gzip.NewReader(r)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	defer func() {
-		_ = z.Close()
-	}()
-	return io.Copy(w, z)
+	return Decompress{
+		z: z,
+	}, nil
 }
