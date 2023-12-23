@@ -1,8 +1,10 @@
 package multipart
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"slices"
 
 	"github.com/google/uuid"
 
@@ -11,10 +13,21 @@ import (
 
 type Range = http_range.Range
 
+var ErrOverlap = errors.New("ranges overlap")
+
 func ParseRange(bytes string, size int64) (ranges []Range, err error) {
 	ranges, err = http_range.ParseRange(bytes, size)
-	if err != nil {
+	if err != nil || len(ranges) == 0 {
 		return
+	}
+	slices.SortFunc(ranges, func(a, b Range) int {
+		return int(a.Start - b.Start)
+	})
+	for i, r := range ranges[1:] {
+		if ranges[i].Start+ranges[i].Length > r.Start {
+			err = ErrOverlap
+			break
+		}
 	}
 	return
 }
