@@ -37,7 +37,7 @@ func (c *Chain) Run(ctx context.Context, base, file, pipe string) error {
 		return err
 	}
 	c.Handle("file", c.FileHandle)
-	return c.Listen(ctx)
+	return c.Listen(ctx, "chain")
 }
 
 func (c *Chain) FileHandle(ctx context.Context, q message.Query) (message.Reply, error) {

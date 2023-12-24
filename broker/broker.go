@@ -11,8 +11,8 @@ import (
 
 type Broker interface {
 	Handle(string, func(context.Context, message.Query) (message.Reply, error))
-	Send(context.Context, string, any) error
-	Listen(ctx context.Context) error
+	Send(context.Context, string, string, any) error
+	Listen(context.Context, string) error
 	Shutdown(context.Context) error
 }
 
