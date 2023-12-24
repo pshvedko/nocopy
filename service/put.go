@@ -5,6 +5,7 @@ import (
 	"crypto/sha1"
 	"log/slog"
 	"net/http"
+	"path"
 
 	"github.com/google/uuid"
 
@@ -15,12 +16,13 @@ func (s *Service) Put(w http.ResponseWriter, r *http.Request) {
 	var blocks []uuid.UUID
 	var hashes [][]byte
 	var sizes []int64
-	file, err := s.Repository.Put(r.Context(), r.URL.Path)
+	file, err := s.Repository.Put(r.Context(), path.Clean(r.URL.Path))
 	for err == nil {
 		var size int64
 		bid := uuid.New()
 		hash := sha1.New()
-		_, err = s.Storage.Store(r.Context(), bid.String(), -1, io.Compressor(r.Body, s.Size, &size, hash))
+		//_, err = s.Storage.Store(r.Context(), bid.String(), -1, io.Compressor(r.Body, s.Size, &size, hash))
+		size, err = s.Storage.Store(r.Context(), bid.String(), -1, io.TeeLimitReader(r.Body, s.Size, hash))
 		if err != nil {
 			slog.Error("put store", "err", err)
 			break

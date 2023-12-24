@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"path"
 	"strconv"
 	"time"
 
@@ -21,7 +22,7 @@ func (s *Service) Get(w http.ResponseWriter, r *http.Request) {
 	var size int64
 	var date time.Time
 	var mime string
-	if mime, date, size, blocks, sizes, err = s.Repository.Get(r.Context(), r.URL.Path); err != nil {
+	if mime, date, size, blocks, sizes, err = s.Repository.Get(r.Context(), path.Clean(r.URL.Path)); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 	} else if len(blocks) == 0 {
 		w.WriteHeader(http.StatusNotFound)
@@ -91,16 +92,16 @@ func (s *Service) Get(w http.ResponseWriter, r *http.Request) {
 						err = e
 					}
 				}(body)
-				body, err = io.Decompressor(body)
-				if err != nil {
-					return
-				}
-				defer func(c io.Closer) {
-					e := c.Close()
-					if err == nil {
-						err = e
-					}
-				}(body)
+				//body, err = io.Decompressor(body)
+				//if err != nil {
+				//	return
+				//}
+				//defer func(c io.Closer) {
+				//	e := c.Close()
+				//	if err == nil {
+				//		err = e
+				//	}
+				//}(body)
 				var z int64
 				for j := range offsets[i] {
 					if len(part) == 2 && len(ranges) > 0 && m == 0 {

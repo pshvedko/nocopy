@@ -39,6 +39,10 @@ func (c *Compress) Read(p []byte) (n int, err error) {
 	return c.b.Read(p)
 }
 
+func TeeLimitReader(r io.Reader, m int64, w io.Writer) io.Reader {
+	return io.TeeReader(io.LimitReader(r, m), w)
+}
+
 func Compressor(r io.Reader, m int64, n *int64, w io.Writer) io.Reader {
 	var c Compress
 	c.r = io.TeeReader(io.LimitReader(r, m), w)
