@@ -62,15 +62,16 @@ func (b *Block) Run(ctx context.Context, addr, port, base, file, pipe string, si
 	b.Addr = net.JoinHostPort(addr, port)
 	b.BaseContext = func(net.Listener) context.Context { return ctx }
 	b.WaitGroup.Add(1)
+	b.Broker.Topic("block")
 	go b.WaitForContextCancel(ctx)
 	return b.ListenAndServe()
 }
 
 func (b *Block) WaitForContextCancel(ctx context.Context) {
 	<-ctx.Done()
-	_ = b.Broker.Shutdown(ctx)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
+	_ = b.Broker.Shutdown(ctx)
 	_ = b.Server.Shutdown(ctx)
 	b.Done()
 	b.Wait()

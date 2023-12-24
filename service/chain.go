@@ -2,10 +2,10 @@ package service
 
 import (
 	"context"
+	"github.com/google/uuid"
 	"log/slog"
 	"sync"
-
-	"github.com/google/uuid"
+	"time"
 
 	"github.com/pshvedko/nocopy/api"
 	"github.com/pshvedko/nocopy/broker"
@@ -37,10 +37,23 @@ func (c *Chain) Run(ctx context.Context, base, file, pipe string) error {
 		return err
 	}
 	c.Handle("file", c.FileHandle)
-	return c.Listen(ctx, "chain")
+	defer c.Shutdown()
+	c.Add(1)
+	return c.Listen(ctx, "chain", true)
+}
+
+func (c *Chain) Shutdown() {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	c.Done()
+	c.Wait()
+	_ = c.Storage.Shutdown(ctx)
+	_ = c.Repository.Shutdown(ctx)
 }
 
 func (c *Chain) FileHandle(ctx context.Context, q message.Query) (message.Reply, error) {
+	c.Add(1)
+	defer c.Done()
 	var file api.File
 	err := q.Unmarshal(&file)
 	if err != nil {

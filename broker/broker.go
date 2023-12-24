@@ -3,6 +3,7 @@ package broker
 import (
 	"context"
 	"errors"
+	"github.com/google/uuid"
 	"net/url"
 
 	"github.com/pshvedko/nocopy/broker/message"
@@ -10,9 +11,10 @@ import (
 )
 
 type Broker interface {
+	Topic(string)
 	Handle(string, func(context.Context, message.Query) (message.Reply, error))
-	Send(context.Context, string, string, any) error
-	Listen(context.Context, string) error
+	Send(context.Context, string, string, any) (uuid.UUID, error)
+	Listen(context.Context, string, bool) error
 	Shutdown(context.Context) error
 }
 
