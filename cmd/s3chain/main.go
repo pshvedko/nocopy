@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -14,37 +12,27 @@ import (
 )
 
 func main() {
-	var addrFlag string
-	var portFlag string
 	var baseFlag string
 	var fileFlag string
-	var sizeFlag int64
+	var pipeFlag string
 
-	var s service.Service
+	var s service.Chain
 	defer s.Wait()
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
 	c := &cobra.Command{
-		Use:  "s3nocopy",
+		Use:  "s3chain",
 		Long: "S3 (not yet) compatible copy less proxy service",
 		RunE: func(*cobra.Command, []string) error {
-			err := s.Run(ctx, addrFlag, portFlag, baseFlag, fileFlag, sizeFlag)
-			switch {
-			case errors.Is(err, http.ErrServerClosed):
-				return nil
-			default:
-				return err
-			}
+			return s.Run(ctx, baseFlag, fileFlag, pipeFlag)
 		},
 	}
 
-	c.Flags().StringVar(&addrFlag, "addr", "", "bind address")
-	c.Flags().StringVar(&portFlag, "port", "8080", "bind port")
 	c.Flags().StringVar(&baseFlag, "base", "postgres://postgres:postgres@postgres:5432/nocopy", "data base")
 	c.Flags().StringVar(&fileFlag, "file", "minio://admin:admin123@minio:9000/nocopy", "file storage")
-	c.Flags().Int64Var(&sizeFlag, "size", 8*512, "block size")
+	c.Flags().StringVar(&pipeFlag, "pipe", "nats://nats", "message broker")
 
 	err := c.Execute()
 	if err != nil {

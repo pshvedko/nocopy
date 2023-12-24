@@ -2,11 +2,12 @@ package postgres
 
 import (
 	"context"
-	"github.com/google/uuid"
-	"github.com/jmoiron/sqlx"
 	"net/url"
 	"strconv"
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/jmoiron/sqlx"
 )
 
 type Repository struct {

@@ -8,8 +8,8 @@ import (
 	"github.com/google/uuid"
 )
 
-func (s *Service) Delete(w http.ResponseWriter, r *http.Request) {
-	blocks, err := s.Repository.Delete(r.Context(), path.Clean(r.URL.Path))
+func (b *Block) Delete(w http.ResponseWriter, r *http.Request) {
+	blocks, err := b.Repository.Delete(r.Context(), path.Clean(r.URL.Path))
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 	} else if len(blocks) == 0 {
@@ -21,7 +21,7 @@ func (s *Service) Delete(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			slog.Warn("delete", "id", id)
-			err = s.Storage.Purge(r.Context(), id.String())
+			err = b.Storage.Purge(r.Context(), id.String())
 			if err != nil {
 				slog.Error("delete", "err", err)
 			}
