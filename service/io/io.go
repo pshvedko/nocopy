@@ -22,10 +22,10 @@ func Compare(r1, r2 io.Reader) (bool, error) {
 		switch {
 		case !bytes.Equal(b1[:n1], b2[:n2]):
 			return false, nil
-		case errors.Is(err1, EOF) && errors.Is(err2, EOF):
-			return true, nil
 		case errors.Is(err1, EOK) && errors.Is(err2, EOK):
 			continue
+		case errors.Is(err1, EOF) && errors.Is(err2, EOF):
+			return true, nil
 		default:
 			return false, nil
 		}
