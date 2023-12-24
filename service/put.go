@@ -53,7 +53,6 @@ func (s *Service) copy(ctx context.Context, chains []uuid.UUID, blocks []uuid.UU
 			slog.Error("copy lookup", "err", err)
 			continue
 		}
-		slog.Warn("copy lookup", "similarities", similarities)
 		if len(similarities) == 0 || similarities[0] == blocks[i] {
 			continue
 		}
@@ -63,6 +62,7 @@ func (s *Service) copy(ctx context.Context, chains []uuid.UUID, blocks []uuid.UU
 			slog.Error("copy load", "name", blocks[i], "err", err)
 			continue
 		}
+		slog.Warn("copy lookup", "similarities", similarities, "i", i)
 		if func() bool {
 			var n int
 			for j := range similarities {
@@ -72,14 +72,18 @@ func (s *Service) copy(ctx context.Context, chains []uuid.UUID, blocks []uuid.UU
 				var similar io.ReadCloser
 				similar, err = s.Storage.Load(ctx, similarities[j].String())
 				if err != nil {
-					slog.Error("copy load", "name", similarities[j], "err", err)
+					slog.Error("copy load", "id", similarities[j], "err", err)
 					continue
 				}
 				if n > 0 {
 					slog.Warn("copy seek")
 					_, _ = origin.Seek(0, 0)
 				}
-				if io.Compare(origin, similar) {
+				var ok bool
+				ok, err = io.Compare(origin, similar)
+				if err != nil {
+					slog.Error("copy equal", "j", j, "err", err)
+				} else if ok {
 					slog.Warn("copy equal", "blocks", []uuid.UUID{blocks[i], similarities[j]})
 					err = s.Repository.Link(ctx, chains[0], blocks[i], similarities[j])
 					if err == nil {

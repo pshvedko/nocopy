@@ -44,7 +44,7 @@ func main() {
 	c.Flags().StringVar(&portFlag, "port", "8080", "bind port")
 	c.Flags().StringVar(&baseFlag, "base", "postgres://postgres:postgres@postgres:5432/nocopy", "data base")
 	c.Flags().StringVar(&fileFlag, "file", "minio://admin:admin123@minio:9000/nocopy", "file storage")
-	c.Flags().Int64Var(&sizeFlag, "size", 512, "block size")
+	c.Flags().Int64Var(&sizeFlag, "size", 8*512, "block size")
 
 	err := c.Execute()
 	if err != nil {
