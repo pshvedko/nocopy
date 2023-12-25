@@ -22,26 +22,23 @@ type Broker struct {
 	*nats.Conn
 	handler      map[string]func(context.Context, message.Query) (message.Reply, error)
 	subscription []Subscriber
-	topic        string
+	topic        [3]string
 }
 
 func (b *Broker) Handle(method string, handler func(context.Context, message.Query) (message.Reply, error)) {
 	b.handler[method] = handler
 }
 
-func (b *Broker) Listen(ctx context.Context, topic string, wait bool) error {
-	b.Topic(topic)
-	s, err := b.Conn.QueueSubscribe(topic, topic, b.Message)
-	if err != nil {
-		return err
+func (b *Broker) Listen(_ context.Context, topic, host, id string) error {
+	b.topic = [3]string{topic, host, id}
+	for i := 1; i < 4; i++ {
+		s, err := b.Conn.QueueSubscribe(b.At(i), topic, b.onMessage)
+		if err != nil {
+			return err
+		}
+		b.subscription = append(b.subscription, s)
 	}
-	b.subscription = append(b.subscription, s)
-	if !wait {
-		return nil
-	}
-	<-ctx.Done()
-	b.subscription = b.subscription[:0]
-	return s.Unsubscribe()
+	return b.Conn.Flush()
 }
 
 type Query struct {
@@ -70,7 +67,7 @@ func (q Query) Unmarshal(a any) error {
 	return json.Unmarshal(q.m.Data, a)
 }
 
-func (b *Broker) Message(m *nats.Msg) {
+func (b *Broker) onMessage(m *nats.Msg) {
 	_ = m.InProgress()
 	q := Query{m: m}
 	h, ok := b.handler[q.BY()]
@@ -81,7 +78,7 @@ func (b *Broker) Message(m *nats.Msg) {
 }
 
 func (b *Broker) Query(_ context.Context, to, by string, a any, oo ...any) (id uuid.UUID, err error) {
-	o, err := message.Options(b.topic, oo)
+	o, err := message.Options(b.At(3), oo)
 	if err != nil {
 		return
 	}
@@ -103,22 +100,25 @@ func (b *Broker) Query(_ context.Context, to, by string, a any, oo ...any) (id u
 	return
 }
 
-func (b *Broker) Shutdown(_ context.Context) (err error) {
+func (b *Broker) Shutdown(_ context.Context) error {
+	if b == nil {
+		return nil
+	}
+	defer b.Conn.Close()
 	i := len(b.subscription)
 	for i > 0 {
 		i--
-		err = b.subscription[i].Unsubscribe()
+		err := b.subscription[i].Unsubscribe()
 		if err != nil {
-			return
+			return err
 		}
 		b.subscription = b.subscription[:i]
 	}
-	b.Close()
-	return
+	return b.Conn.Flush()
 }
 
-func (b *Broker) Topic(topic string) {
-	b.topic = topic
+func (b *Broker) At(n int) string {
+	return strings.Join(b.topic[:n], ":")
 }
 
 func New(ur1 *url.URL) (*Broker, error) {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"net/http"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -23,22 +24,40 @@ type Options struct {
 	DataBase      string
 }
 
-type Boundary struct {
+type Server interface {
+	ListenAndServe() error
+	Shutdown(context.Context) error
 }
 
 type Block struct {
 	http.Server
-	sync.WaitGroup
 	broker.Broker
 	storage.Storage
 	repository.Repository
 	atomic.Uint64
+	atomic.Bool
+	sync.WaitGroup
+	sync.Mutex
 	Size int64
 }
 
 func (b *Block) Run(ctx context.Context, addr, port, base, file, pipe string, size int64) error {
-	var err error
+	time.Sleep(2 * time.Second)
+	b.Mutex.Lock()
+	defer b.Mutex.Unlock()
+	if !b.Bool.CompareAndSwap(false, true) {
+		return context.Canceled
+	}
+	b.WaitGroup.Add(1)
+	host, err := os.Hostname()
+	if err != nil {
+		return err
+	}
 	b.Broker, err = broker.New(pipe)
+	if err != nil {
+		return err
+	}
+	err = b.Broker.Listen(ctx, "block", host, "1")
 	if err != nil {
 		return err
 	}
@@ -61,24 +80,27 @@ func (b *Block) Run(ctx context.Context, addr, port, base, file, pipe string, si
 	b.Handler = h
 	b.Addr = net.JoinHostPort(addr, port)
 	b.BaseContext = func(net.Listener) context.Context { return ctx }
-	b.WaitGroup.Add(1)
-	b.Broker.Topic("block")
-	go b.WaitForContextCancel(ctx)
+	b.Mutex.Unlock()
+	defer b.Mutex.Lock()
 	return b.ListenAndServe()
 }
 
-func (b *Block) WaitForContextCancel(ctx context.Context) {
-	<-ctx.Done()
+func (b *Block) Stop() {
+	b.Mutex.Lock()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
-	_ = b.Broker.Shutdown(ctx)
-	_ = b.Server.Shutdown(ctx)
-	b.Done()
-	b.Wait()
-	_ = b.Storage.Shutdown(ctx)
-	_ = b.Repository.Shutdown(ctx)
-}
-
-func (b *Block) Context() context.Context {
-	return b.BaseContext(nil)
+	if b.Broker != nil {
+		_ = b.Broker.Shutdown(ctx)
+		_ = b.Server.Shutdown(ctx)
+		if b.Storage != nil {
+			_ = b.Storage.Shutdown(ctx)
+			if b.Repository != nil {
+				_ = b.Repository.Shutdown(ctx)
+			}
+		}
+	}
+	if !b.Bool.CompareAndSwap(false, true) {
+		defer b.WaitGroup.Done()
+	}
+	b.Mutex.Unlock()
 }

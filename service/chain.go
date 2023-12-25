@@ -2,10 +2,12 @@ package service
 
 import (
 	"context"
-	"github.com/google/uuid"
 	"log/slog"
+	"os"
 	"sync"
 	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/pshvedko/nocopy/api"
 	"github.com/pshvedko/nocopy/broker"
@@ -23,7 +25,10 @@ type Chain struct {
 }
 
 func (c *Chain) Run(ctx context.Context, base, file, pipe string) error {
-	var err error
+	host, err := os.Hostname()
+	if err != nil {
+		return err
+	}
 	c.Broker, err = broker.New(pipe)
 	if err != nil {
 		return err
@@ -39,7 +44,8 @@ func (c *Chain) Run(ctx context.Context, base, file, pipe string) error {
 	c.Handle("file", c.FileHandle)
 	defer c.Shutdown()
 	c.Add(1)
-	return c.Listen(ctx, "chain", true)
+	panic(1) // TODO
+	return c.Listen(ctx, "chain", host, "1")
 }
 
 func (c *Chain) Shutdown() {

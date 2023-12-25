@@ -14,19 +14,19 @@ type Storage struct {
 	*minio.Client
 }
 
-func (s Storage) Shutdown(context.Context) error { return nil }
+func (s *Storage) Shutdown(context.Context) error { return nil }
 
-func (s Storage) Purge(ctx context.Context, name string) error {
+func (s *Storage) Purge(ctx context.Context, name string) error {
 	err := s.RemoveObject(ctx, s.Path[1:], name, minio.RemoveObjectOptions{})
 	return err
 }
 
-func (s Storage) Load(ctx context.Context, name string) (io.ReadSeekCloser, error) {
+func (s *Storage) Load(ctx context.Context, name string) (io.ReadSeekCloser, error) {
 	r, err := s.Client.GetObject(ctx, s.Path[1:], name, minio.GetObjectOptions{})
 	return r, err
 }
 
-func (s Storage) Store(ctx context.Context, name string, size int64, r io.Reader) (int64, error) {
+func (s *Storage) Store(ctx context.Context, name string, size int64, r io.Reader) (int64, error) {
 	info, err := s.PutObject(ctx, s.Path[1:], name, r, size, minio.PutObjectOptions{})
 	return info.Size, err
 }

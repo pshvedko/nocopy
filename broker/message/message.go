@@ -26,8 +26,8 @@ type Option struct {
 	AT func() string
 }
 
-func Options(from string, oo []any) (o Option, err error) {
-	for _, v := range append([]any{from, uuid.New, []string(nil)}, oo...) {
+func Options(at string, oo []any) (o Option, err error) {
+	for _, v := range append([]any{at, uuid.New, []string(nil)}, oo...) {
 		switch x := v.(type) {
 		case func() uuid.UUID:
 			o.ID = x

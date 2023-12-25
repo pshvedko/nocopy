@@ -15,37 +15,37 @@ type Repository struct {
 	*sqlx.DB
 }
 
-func (r Repository) Put(ctx context.Context, path string) (fid uuid.UUID, err error) {
+func (r *Repository) Put(ctx context.Context, path string) (fid uuid.UUID, err error) {
 	err = r.GetContext(ctx, &fid, "select * from file_insert($1)", path)
 	return
 }
 
-func (r Repository) Link(ctx context.Context, cid uuid.UUID, bid1 uuid.UUID, bid2 uuid.UUID) (err error) {
+func (r *Repository) Link(ctx context.Context, cid uuid.UUID, bid1 uuid.UUID, bid2 uuid.UUID) (err error) {
 	_, err = r.ExecContext(ctx, "call block_update($1, $2, $3)", cid, bid1, bid2)
 	return
 }
 
-func (r Repository) Update(ctx context.Context, fid uuid.UUID, blocks []uuid.UUID, hashes [][]byte, sizes []int64) (chains []uuid.UUID, err error) {
+func (r *Repository) Update(ctx context.Context, fid uuid.UUID, blocks []uuid.UUID, hashes [][]byte, sizes []int64) (chains []uuid.UUID, err error) {
 	err = r.SelectContext(ctx, &chains, "select * from block_insert($1, $2, $3, $4)", fid, blocks, hashes, sizes)
 	return
 }
 
-func (r Repository) Lookup(ctx context.Context, hash []byte, size int64) (blocks []uuid.UUID, err error) {
+func (r *Repository) Lookup(ctx context.Context, hash []byte, size int64) (blocks []uuid.UUID, err error) {
 	err = r.SelectContext(ctx, &blocks, "select * from block_select($1, $2)", hash, size)
 	return
 }
 
-func (r Repository) Break(ctx context.Context, cid uuid.UUID) (blocks []uuid.UUID, err error) {
+func (r *Repository) Break(ctx context.Context, cid uuid.UUID) (blocks []uuid.UUID, err error) {
 	err = r.SelectContext(ctx, &blocks, "select * from block_delete($1)", cid)
 	return
 }
 
-func (r Repository) Delete(ctx context.Context, path string) (blocks []uuid.UUID, err error) {
+func (r *Repository) Delete(ctx context.Context, path string) (blocks []uuid.UUID, err error) {
 	err = r.SelectContext(ctx, &blocks, "select * from file_delete($1)", path)
 	return
 }
 
-func (r Repository) Get(ctx context.Context, name string) (
+func (r *Repository) Get(ctx context.Context, name string) (
 	mime string,
 	date time.Time,
 	size int64,
@@ -74,7 +74,10 @@ func (r Repository) Get(ctx context.Context, name string) (
 	return
 }
 
-func (r Repository) Shutdown(context.Context) error {
+func (r *Repository) Shutdown(context.Context) error {
+	if r == nil {
+		return nil
+	}
 	return r.Close()
 }
 

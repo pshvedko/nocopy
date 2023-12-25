@@ -11,10 +11,9 @@ import (
 )
 
 type Broker interface {
-	Topic(string)
 	Handle(string, func(context.Context, message.Query) (message.Reply, error))
 	Query(context.Context, string, string, any, ...any) (uuid.UUID, error)
-	Listen(context.Context, string, bool) error
+	Listen(context.Context, string, string, string) error
 	Shutdown(context.Context) error
 }
 
