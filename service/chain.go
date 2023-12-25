@@ -54,7 +54,7 @@ func (c *Chain) Shutdown() {
 func (c *Chain) FileHandle(ctx context.Context, q message.Query) (message.Reply, error) {
 	c.Add(1)
 	defer c.Done()
-	slog.Warn(q.BY(), "id", q.ID(), "re", q.RE())
+	slog.Warn(q.BY(), "id", q.ID(), "at", q.AT(), "re", q.RE())
 	var file api.File
 	err := q.Unmarshal(&file)
 	if err != nil {

@@ -48,12 +48,16 @@ type Query struct {
 	m *nats.Msg
 }
 
+func (q Query) AT() string {
+	return q.m.Subject
+}
+
 func (q Query) RE() []string {
 	return append(q.m.Header["RE"], q.m.Reply)
 }
 
 func (q Query) BY() string {
-	return strings.Join(q.m.Header["BY"], ".")
+	return strings.Join(q.m.Header["BY"], "!")
 }
 
 func (q Query) ID() uuid.UUID {
@@ -68,16 +72,16 @@ func (q Query) Unmarshal(a any) error {
 
 func (b *Broker) Message(m *nats.Msg) {
 	_ = m.InProgress()
-	method := strings.Join(m.Header["BY"], ".")
-	handle, ok := b.handler[method]
+	q := Query{m: m}
+	h, ok := b.handler[q.BY()]
 	if ok {
-		_, _ = handle(context.Background(), Query{m: m})
+		_, _ = h(context.TODO(), q)
 	}
 	_ = m.Ack()
 }
 
 func (b *Broker) Query(_ context.Context, to, by string, a any, oo ...any) (id uuid.UUID, err error) {
-	o, err := message.Options(oo)
+	o, err := message.Options(b.topic, oo)
 	if err != nil {
 		return
 	}
@@ -88,7 +92,7 @@ func (b *Broker) Query(_ context.Context, to, by string, a any, oo ...any) (id u
 	id = o.ID()
 	err = b.Conn.PublishMsg(&nats.Msg{
 		Subject: to,
-		Reply:   b.topic,
+		Reply:   o.AT(),
 		Header: nats.Header{
 			"BY": []string{by},
 			"ID": []string{string(id[:])},

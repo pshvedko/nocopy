@@ -6,14 +6,11 @@ import (
 	"github.com/google/uuid"
 )
 
-type ID = uuid.UUID
-type RE = []string
-type BY = string
-
 type Query interface {
-	ID() ID
-	RE() RE
-	BY() BY
+	ID() uuid.UUID
+	RE() []string
+	BY() string
+	AT() string
 	Unmarshal(any) error
 }
 
@@ -24,24 +21,30 @@ type Reply interface {
 var ErrOption = errors.New("invalid query option")
 
 type Option struct {
-	ID func() ID
-	RE func() RE
+	ID func() uuid.UUID
+	RE func() []string
+	AT func() string
 }
 
-func Options(oo []any) (o Option, err error) {
-	for _, v := range append([]any{uuid.New, func() RE { return nil }}, oo...) {
+func Options(from string, oo []any) (o Option, err error) {
+	for _, v := range append([]any{from, uuid.New, []string(nil)}, oo...) {
 		switch x := v.(type) {
-		case func() ID:
+		case func() uuid.UUID:
 			o.ID = x
-		case ID:
+		case uuid.UUID:
 			o.ID = func() uuid.UUID { return x }
-		case func() RE:
+		case func() []string:
 			o.RE = x
-		case RE:
+		case []string:
 			o.RE = func() []string { return x }
+		case func() string:
+			o.AT = x
+		case string:
+			o.AT = func() string { return x }
 		case Query:
 			o.ID = x.ID
 			o.RE = x.RE
+			o.AT = x.AT
 		default:
 			err = ErrOption
 			return
