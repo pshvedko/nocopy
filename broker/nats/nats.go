@@ -3,9 +3,12 @@ package nats
 import (
 	"context"
 	"encoding/json"
-	"github.com/google/uuid"
-	"github.com/nats-io/nats.go"
 	"net/url"
+	"strings"
+
+	"github.com/google/uuid"
+
+	"github.com/nats-io/nats.go"
 
 	"github.com/pshvedko/nocopy/broker/message"
 )
@@ -45,13 +48,27 @@ type Query struct {
 	m *nats.Msg
 }
 
+func (q Query) RE() []string {
+	return append(q.m.Header["RE"], q.m.Reply)
+}
+
+func (q Query) BY() string {
+	return strings.Join(q.m.Header["BY"], ".")
+}
+
+func (q Query) ID() uuid.UUID {
+	var id uuid.UUID
+	copy(id[:], q.m.Header.Get("ID"))
+	return id
+}
+
 func (q Query) Unmarshal(a any) error {
 	return json.Unmarshal(q.m.Data, a)
 }
 
 func (b *Broker) Message(m *nats.Msg) {
 	_ = m.InProgress()
-	method := m.Header.Get("BY")
+	method := strings.Join(m.Header["BY"], ".")
 	handle, ok := b.handler[method]
 	if ok {
 		_, _ = handle(context.Background(), Query{m: m})
@@ -59,17 +76,25 @@ func (b *Broker) Message(m *nats.Msg) {
 	_ = m.Ack()
 }
 
-func (b *Broker) Send(_ context.Context, to, by string, a any) (id uuid.UUID, err error) {
+func (b *Broker) Query(_ context.Context, to, by string, a any, oo ...any) (id uuid.UUID, err error) {
+	o, err := message.Options(oo)
+	if err != nil {
+		return
+	}
 	bytes, err := json.Marshal(a)
 	if err != nil {
 		return
 	}
-	id = uuid.New()
+	id = o.ID()
 	err = b.Conn.PublishMsg(&nats.Msg{
 		Subject: to,
 		Reply:   b.topic,
-		Header:  nats.Header{"BY": []string{by}, "ID": []string{id.String()}},
-		Data:    bytes,
+		Header: nats.Header{
+			"BY": []string{by},
+			"ID": []string{string(id[:])},
+			"RE": o.RE(),
+		},
+		Data: bytes,
 	})
 	return
 }
