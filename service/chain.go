@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -18,13 +19,21 @@ import (
 )
 
 type Chain struct {
-	sync.WaitGroup
 	broker.Broker
 	storage.Storage
 	repository.Repository
+	atomic.Bool
+	sync.WaitGroup
+	sync.Mutex
 }
 
 func (c *Chain) Run(ctx context.Context, base, file, pipe string) error {
+	c.Mutex.Lock()
+	defer c.Mutex.Unlock()
+	if !c.Bool.CompareAndSwap(false, true) {
+		return context.Canceled
+	}
+	c.WaitGroup.Add(1)
 	host, err := os.Hostname()
 	if err != nil {
 		return err
@@ -33,6 +42,8 @@ func (c *Chain) Run(ctx context.Context, base, file, pipe string) error {
 	if err != nil {
 		return err
 	}
+	c.Broker.Handle("file", c.FileHandle)
+	err = c.Broker.Listen(ctx, "chain", host, "1")
 	c.Storage, err = storage.New(file)
 	if err != nil {
 		return err
@@ -41,20 +52,23 @@ func (c *Chain) Run(ctx context.Context, base, file, pipe string) error {
 	if err != nil {
 		return err
 	}
-	c.Handle("file", c.FileHandle)
-	defer c.Shutdown()
-	c.Add(1)
-	panic(1) // TODO
-	return c.Listen(ctx, "chain", host, "1")
+	c.Mutex.Unlock()
+	defer c.Mutex.Lock()
+	<-ctx.Done()
+	return nil
 }
 
-func (c *Chain) Shutdown() {
+func (c *Chain) Stop() {
+	c.Mutex.Lock()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
-	c.Done()
-	c.Wait()
+	_ = c.Broker.Shutdown(ctx)
 	_ = c.Storage.Shutdown(ctx)
 	_ = c.Repository.Shutdown(ctx)
+	if !c.Bool.CompareAndSwap(false, true) {
+		defer c.WaitGroup.Done()
+	}
+	c.Mutex.Unlock()
 }
 
 func (c *Chain) FileHandle(ctx context.Context, q message.Query) (message.Reply, error) {

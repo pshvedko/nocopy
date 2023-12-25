@@ -11,7 +11,7 @@ import (
 	"github.com/pshvedko/nocopy/service"
 )
 
-func main() {
+func run() error {
 	var baseFlag string
 	var fileFlag string
 	var pipeFlag string
@@ -25,6 +25,9 @@ func main() {
 	c := &cobra.Command{
 		Use:  "s3chain",
 		Long: "S3 (not yet) compatible copy less proxy service",
+		PreRun: func(*cobra.Command, []string) {
+			context.AfterFunc(ctx, s.Stop)
+		},
 		RunE: func(*cobra.Command, []string) error {
 			return s.Run(ctx, baseFlag, fileFlag, pipeFlag)
 		},
@@ -34,7 +37,11 @@ func main() {
 	c.Flags().StringVar(&fileFlag, "file", "minio://admin:admin123@minio:9000/nocopy", "file storage")
 	c.Flags().StringVar(&pipeFlag, "pipe", "nats://nats", "message broker")
 
-	err := c.Execute()
+	return c.Execute()
+}
+
+func main() {
+	err := run()
 	if err != nil {
 		os.Exit(1)
 	}

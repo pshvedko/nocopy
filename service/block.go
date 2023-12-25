@@ -42,7 +42,6 @@ type Block struct {
 }
 
 func (b *Block) Run(ctx context.Context, addr, port, base, file, pipe string, size int64) error {
-	time.Sleep(2 * time.Second)
 	b.Mutex.Lock()
 	defer b.Mutex.Unlock()
 	if !b.Bool.CompareAndSwap(false, true) {
@@ -82,7 +81,7 @@ func (b *Block) Run(ctx context.Context, addr, port, base, file, pipe string, si
 	b.BaseContext = func(net.Listener) context.Context { return ctx }
 	b.Mutex.Unlock()
 	defer b.Mutex.Lock()
-	return b.ListenAndServe()
+	return b.Server.ListenAndServe()
 }
 
 func (b *Block) Stop() {
