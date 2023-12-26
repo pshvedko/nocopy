@@ -34,7 +34,7 @@ func (s *Block) Put(w http.ResponseWriter, r *http.Request) {
 			chains, err = s.Repository.Update(r.Context(), file, blocks, hashes, sizes)
 			if err == nil {
 				w.WriteHeader(http.StatusCreated)
-				_, err = s.Broker.Query(r.Context(), "chain", "file", api.File{
+				_, err = s.Broker.Send(r.Context(), "chain", "file", api.File{
 					Chains: chains,
 					Blocks: blocks,
 					Hashes: hashes,

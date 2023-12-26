@@ -3,6 +3,7 @@ package nats
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/url"
 	"strings"
 
@@ -47,26 +48,44 @@ type Query struct {
 	m *nats.Msg
 }
 
+func (q Query) FF() [3]string {
+	var ff [3]string
+	copy(ff[:], q.m.Header["FF"])
+	return ff
+}
+
 func (q Query) AT() string {
 	return q.m.Subject
 }
 
+func (q Query) TO() string {
+	return q.m.Reply
+}
+
 func (q Query) RE() []string {
-	return append(q.m.Header["RE"], q.m.Reply)
+	return q.m.Header["RE"]
 }
 
 func (q Query) BY() string {
-	return strings.Join(q.m.Header["BY"], "!")
+	return strings.Join(q.m.Header["BY"], ".")
 }
 
 func (q Query) ID() uuid.UUID {
-	var id uuid.UUID
-	copy(id[:], q.m.Header.Get("ID"))
-	return id
+	return uuid.MustParse(strings.Join(q.m.Header["ID"], "-"))
 }
 
 func (q Query) Unmarshal(a any) error {
+	ff := q.FF()
+	if len(ff[1]) > 0 {
+		return errors.New(ff[1])
+	}
 	return json.Unmarshal(q.m.Data, a)
+}
+
+func (q Query) Error(err error) {
+	ff := q.FF()
+	ff[1] = err.Error()
+	q.m.Header["FF"] = ff[:]
 }
 
 func (b *Broker) onMessage(m *nats.Msg) {
@@ -74,32 +93,45 @@ func (b *Broker) onMessage(m *nats.Msg) {
 	q := Query{m: m}
 	h, ok := b.handler[q.BY()]
 	if ok {
-		_, _ = h(context.TODO(), q)
+		r, err := h(context.TODO(), q)
+		switch {
+		case err != nil:
+			r = message.Body{}
+			q.Error(err)
+			fallthrough
+		case r != nil:
+			_, _ = b.send(message.Backward{Header: q}, r)
+		}
 	}
 	_ = m.Ack()
 }
 
-func (b *Broker) Query(_ context.Context, to, by string, a any, oo ...any) (id uuid.UUID, err error) {
-	o, err := message.Options(b.At(3), oo)
+func (b *Broker) send(h message.Header, r message.Reply) (uuid.UUID, error) {
+	bytes, err := r.Marshal()
 	if err != nil {
-		return
+		return uuid.UUID{}, err
 	}
-	bytes, err := json.Marshal(a)
-	if err != nil {
-		return
-	}
-	id = o.ID()
-	err = b.Conn.PublishMsg(&nats.Msg{
-		Subject: to,
-		Reply:   o.AT(),
+	ff := h.FF()
+	id := h.ID()
+	return id, b.Conn.PublishMsg(&nats.Msg{
+		Subject: h.TO(),
+		Reply:   h.AT(),
 		Header: nats.Header{
-			"BY": []string{by},
-			"ID": []string{string(id[:])},
-			"RE": o.RE(),
+			"ID": strings.Split(id.String(), "-"),
+			"BY": strings.Split(h.BY(), "."),
+			"RE": h.RE(),
+			"FF": ff[:],
 		},
 		Data: bytes,
 	})
-	return
+}
+
+func (b *Broker) Send(_ context.Context, to, by string, v any, oo ...any) (id uuid.UUID, err error) {
+	a, err := message.MakeAddress(b.At(3), oo)
+	if err != nil {
+		return
+	}
+	return b.send(message.Toward{To: to, By: by, Address: a}, message.Body{Any: v})
 }
 
 func (b *Broker) Finish() {

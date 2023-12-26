@@ -12,7 +12,7 @@ import (
 
 type Broker interface {
 	Handle(string, func(context.Context, message.Query) (message.Reply, error))
-	Query(context.Context, string, string, any, ...any) (uuid.UUID, error)
+	Send(context.Context, string, string, any, ...any) (uuid.UUID, error)
 	Listen(context.Context, string, string, string) error
 	Finish()
 	Shutdown()
