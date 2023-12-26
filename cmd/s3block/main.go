@@ -13,7 +13,7 @@ import (
 	"github.com/pshvedko/nocopy/service"
 )
 
-func run() error {
+func main() {
 	var addrFlag string
 	var portFlag string
 	var baseFlag string
@@ -21,12 +21,10 @@ func run() error {
 	var pipeFlag string
 	var sizeFlag int64
 
-	var s service.Block
-	defer s.Wait()
-
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
+	s := service.Block{}
 	c := &cobra.Command{
 		Use:  "s3block",
 		Long: "S3 (not yet) compatible copy less proxy service",
@@ -51,11 +49,7 @@ func run() error {
 	c.Flags().StringVar(&pipeFlag, "pipe", "nats://nats", "message broker")
 	c.Flags().Int64Var(&sizeFlag, "size", 8*512, "block size")
 
-	return c.Execute()
-}
-
-func main() {
-	err := run()
+	err := c.Execute()
 	if err != nil {
 		os.Exit(1)
 	}

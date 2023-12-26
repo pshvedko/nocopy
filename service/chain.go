@@ -6,7 +6,6 @@ import (
 	"os"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	"github.com/google/uuid"
 
@@ -24,70 +23,66 @@ type Chain struct {
 	repository.Repository
 	atomic.Bool
 	sync.WaitGroup
-	sync.Mutex
 }
 
-func (c *Chain) Run(ctx context.Context, base, file, pipe string) error {
-	c.Mutex.Lock()
-	defer c.Mutex.Unlock()
-	if !c.Bool.CompareAndSwap(false, true) {
+func (s *Chain) Run(ctx context.Context, base, file, pipe string) error {
+	defer s.WaitGroup.Wait()
+	s.WaitGroup.Add(1)
+	defer s.WaitGroup.Done()
+	if !s.Bool.CompareAndSwap(false, true) {
 		return context.Canceled
 	}
-	c.WaitGroup.Add(1)
 	host, err := os.Hostname()
 	if err != nil {
 		return err
 	}
-	c.Broker, err = broker.New(pipe)
+	s.Broker, err = broker.New(pipe)
 	if err != nil {
 		return err
 	}
-	c.Broker.Handle("file", c.FileHandle)
-	err = c.Broker.Listen(ctx, "chain", host, "1")
-	c.Storage, err = storage.New(file)
+	defer s.Broker.Shutdown()
+	s.Broker.Handle("file", s.FileHandle)
+	err = s.Broker.Listen(ctx, "chain", host, "1")
 	if err != nil {
 		return err
 	}
-	c.Repository, err = repository.New(base)
+	s.Storage, err = storage.New(file)
 	if err != nil {
 		return err
 	}
-	c.Mutex.Unlock()
-	defer c.Mutex.Lock()
+	defer s.Storage.Shutdown()
+	s.Repository, err = repository.New(base)
+	if err != nil {
+		return err
+	}
+	defer s.Repository.Shutdown()
 	<-ctx.Done()
 	return nil
 }
 
-func (c *Chain) Stop() {
-	c.Mutex.Lock()
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-	defer cancel()
-	_ = c.Broker.Shutdown(ctx)
-	_ = c.Storage.Shutdown(ctx)
-	_ = c.Repository.Shutdown(ctx)
-	if !c.Bool.CompareAndSwap(false, true) {
-		defer c.WaitGroup.Done()
+func (s *Chain) Stop() {
+	if s.Bool.CompareAndSwap(false, true) {
+		return
 	}
-	c.Mutex.Unlock()
 }
 
-func (c *Chain) FileHandle(ctx context.Context, q message.Query) (message.Reply, error) {
-	c.Add(1)
-	defer c.Done()
+func (s *Chain) FileHandle(ctx context.Context, q message.Query) (message.Reply, error) {
+	s.Add(1)
+	defer s.Done()
 	slog.Warn(q.BY(), "id", q.ID(), "at", q.AT(), "re", q.RE())
 	var file api.File
 	err := q.Unmarshal(&file)
 	if err != nil {
 		return nil, err
 	}
-	err = c.File(ctx, file.Chains, file.Blocks, file.Hashes, file.Sizes)
+	err = s.File(ctx, file.Chains, file.Blocks, file.Hashes, file.Sizes)
 	return nil, err
 }
 
-func (c *Chain) File(ctx context.Context, chains []uuid.UUID, blocks []uuid.UUID, hashes [][]byte, sizes []int64) error {
+func (s *Chain) File(ctx context.Context, chains []uuid.UUID, blocks []uuid.UUID, hashes [][]byte, sizes []int64) error {
 	slog.Warn("copy", "chains", chains, "blocks", blocks, "sizes", sizes)
 	for i := range blocks {
-		similarities, err := c.Repository.Lookup(ctx, hashes[i], sizes[i])
+		similarities, err := s.Repository.Lookup(ctx, hashes[i], sizes[i])
 		if err != nil {
 			slog.Error("copy lookup", "err", err)
 			continue
@@ -96,7 +91,7 @@ func (c *Chain) File(ctx context.Context, chains []uuid.UUID, blocks []uuid.UUID
 			continue
 		}
 		var origin io.ReadSeekCloser
-		origin, err = c.Storage.Load(ctx, blocks[i].String())
+		origin, err = s.Storage.Load(ctx, blocks[i].String())
 		if err != nil {
 			slog.Error("copy load", "name", blocks[i], "err", err)
 			continue
@@ -109,7 +104,7 @@ func (c *Chain) File(ctx context.Context, chains []uuid.UUID, blocks []uuid.UUID
 					return true
 				}
 				var similar io.ReadCloser
-				similar, err = c.Storage.Load(ctx, similarities[j].String())
+				similar, err = s.Storage.Load(ctx, similarities[j].String())
 				if err != nil {
 					slog.Error("copy load", "id", similarities[j], "err", err)
 					continue
@@ -124,12 +119,12 @@ func (c *Chain) File(ctx context.Context, chains []uuid.UUID, blocks []uuid.UUID
 					slog.Error("copy equal", "j", j, "err", err)
 				} else if ok {
 					slog.Warn("copy equal", "blocks", []uuid.UUID{blocks[i], similarities[j]})
-					err = c.Repository.Link(ctx, chains[0], blocks[i], similarities[j])
+					err = s.Repository.Link(ctx, chains[0], blocks[i], similarities[j])
 					if err == nil {
 						slog.Warn("copy purge", "block", blocks[i])
 						_ = origin.Close()
 						_ = similar.Close()
-						_ = c.Storage.Purge(ctx, blocks[i].String())
+						_ = s.Storage.Purge(ctx, blocks[i].String())
 						return false
 					}
 					slog.Error("copy link", "chain", chains[0], "blocks", []uuid.UUID{blocks[i], similarities[j]}, "err", err)
@@ -145,7 +140,7 @@ func (c *Chain) File(ctx context.Context, chains []uuid.UUID, blocks []uuid.UUID
 	if chains[1] == uuid.Nil {
 		return nil
 	}
-	oldies, err := c.Repository.Break(ctx, chains[1])
+	oldies, err := s.Repository.Break(ctx, chains[1])
 	if err != nil {
 		slog.Error("copy link", "chain", chains[1], "err", err)
 		return err
@@ -155,7 +150,7 @@ func (c *Chain) File(ctx context.Context, chains []uuid.UUID, blocks []uuid.UUID
 			continue
 		}
 		slog.Warn("copy purge", "block", oldies[i])
-		_ = c.Storage.Purge(ctx, oldies[i].String())
+		_ = s.Storage.Purge(ctx, oldies[i].String())
 	}
 	return nil
 }

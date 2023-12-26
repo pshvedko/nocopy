@@ -32,7 +32,9 @@ func (b *Broker) Handle(method string, handler func(context.Context, message.Que
 func (b *Broker) Listen(_ context.Context, topic, host, id string) error {
 	b.topic = [3]string{topic, host, id}
 	for i := 1; i < 4; i++ {
-		s, err := b.Conn.QueueSubscribe(b.At(i), topic, b.onMessage)
+		at := b.At(i)
+		println("=============== LISTEN", at, topic)
+		s, err := b.Conn.QueueSubscribe(at, topic, b.onMessage)
 		if err != nil {
 			return err
 		}
@@ -100,21 +102,23 @@ func (b *Broker) Query(_ context.Context, to, by string, a any, oo ...any) (id u
 	return
 }
 
-func (b *Broker) Shutdown(_ context.Context) error {
+func (b *Broker) Finish() {
+	println("=============== FINISH")
 	if b == nil {
-		return nil
+		return
 	}
-	defer b.Conn.Close()
-	i := len(b.subscription)
-	for i > 0 {
-		i--
-		err := b.subscription[i].Unsubscribe()
-		if err != nil {
-			return err
-		}
-		b.subscription = b.subscription[:i]
+	for i := range b.subscription {
+		_ = b.subscription[i].Unsubscribe()
 	}
-	return b.Conn.Flush()
+	b.subscription = b.subscription[:0]
+}
+
+func (b *Broker) Shutdown() {
+	if b == nil {
+		return
+	}
+	b.Finish()
+	b.Conn.Close()
 }
 
 func (b *Broker) At(n int) string {

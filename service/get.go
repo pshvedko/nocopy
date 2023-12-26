@@ -14,7 +14,7 @@ import (
 	"github.com/pshvedko/nocopy/service/multipart"
 )
 
-func (b *Block) Get(w http.ResponseWriter, r *http.Request) {
+func (s *Block) Get(w http.ResponseWriter, r *http.Request) {
 	var err error
 	var ranges []multipart.Range
 	var blocks []uuid.UUID
@@ -22,7 +22,7 @@ func (b *Block) Get(w http.ResponseWriter, r *http.Request) {
 	var size int64
 	var date time.Time
 	var mime string
-	if mime, date, size, blocks, sizes, err = b.Repository.Get(r.Context(), path.Clean(r.URL.Path)); err != nil {
+	if mime, date, size, blocks, sizes, err = s.Repository.Get(r.Context(), path.Clean(r.URL.Path)); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 	} else if len(blocks) == 0 {
 		w.WriteHeader(http.StatusNotFound)
@@ -63,7 +63,7 @@ func (b *Block) Get(w http.ResponseWriter, r *http.Request) {
 				}
 				length += multipart.Digits(ranges[n].Start, ranges[n].Start+ranges[n].Length-1, size)
 			}
-			part = append(part, fmt.Sprintf("%020d", b.Uint64.Add(1)))
+			part = append(part, fmt.Sprintf("%020d", s.Uint64.Add(1)))
 			part = append(part, mime)
 			mime = "multipart/byte" + "ranges; boundary=" + part[0]
 		}
@@ -82,7 +82,7 @@ func (b *Block) Get(w http.ResponseWriter, r *http.Request) {
 				if len(offsets[i]) == 0 {
 					return
 				}
-				body, err := b.Storage.Load(r.Context(), id.String())
+				body, err := s.Storage.Load(r.Context(), id.String())
 				if err != nil {
 					return
 				}

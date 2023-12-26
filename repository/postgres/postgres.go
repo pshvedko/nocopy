@@ -74,15 +74,19 @@ func (r *Repository) Get(ctx context.Context, name string) (
 	return
 }
 
-func (r *Repository) Shutdown(context.Context) error {
+func (r *Repository) Shutdown() {
 	if r == nil {
-		return nil
+		return
 	}
-	return r.Close()
+	_ = r.Close()
 }
 
 func New(ur1 *url.URL) (*Repository, error) {
 	db, err := sqlx.Open("pgx", ur1.String())
+	if err != nil {
+		return nil, err
+	}
+	err = db.Ping()
 	if err != nil {
 		return nil, err
 	}

@@ -19,7 +19,7 @@ type Repository interface {
 	Break(context.Context, uuid.UUID) ([]uuid.UUID, error)
 	Update(context.Context, uuid.UUID, []uuid.UUID, [][]byte, []int64) ([]uuid.UUID, error)
 	Delete(context.Context, string) ([]uuid.UUID, error)
-	Shutdown(context.Context) error
+	Shutdown()
 }
 
 func New(name string) (Repository, error) {

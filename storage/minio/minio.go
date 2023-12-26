@@ -14,7 +14,7 @@ type Storage struct {
 	*minio.Client
 }
 
-func (s *Storage) Shutdown(context.Context) error { return nil }
+func (s *Storage) Shutdown() {}
 
 func (s *Storage) Purge(ctx context.Context, name string) error {
 	err := s.RemoveObject(ctx, s.Path[1:], name, minio.RemoveObjectOptions{})

@@ -13,7 +13,7 @@ type Storage interface {
 	Store(context.Context, string, int64, io.Reader) (int64, error)
 	Load(context.Context, string) (io.ReadSeekCloser, error)
 	Purge(context.Context, string) error
-	Shutdown(context.Context) error
+	Shutdown()
 }
 
 func New(name string) (Storage, error) {

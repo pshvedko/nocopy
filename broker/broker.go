@@ -14,7 +14,9 @@ type Broker interface {
 	Handle(string, func(context.Context, message.Query) (message.Reply, error))
 	Query(context.Context, string, string, any, ...any) (uuid.UUID, error)
 	Listen(context.Context, string, string, string) error
-	Shutdown(context.Context) error
+	Finish()
+	Shutdown()
+	At(int) string
 }
 
 func New(name string) (Broker, error) {

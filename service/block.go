@@ -37,69 +37,59 @@ type Block struct {
 	atomic.Uint64
 	atomic.Bool
 	sync.WaitGroup
-	sync.Mutex
 	Size int64
 }
 
-func (b *Block) Run(ctx context.Context, addr, port, base, file, pipe string, size int64) error {
-	b.Mutex.Lock()
-	defer b.Mutex.Unlock()
-	if !b.Bool.CompareAndSwap(false, true) {
+func (s *Block) Run(ctx context.Context, addr, port, base, file, pipe string, size int64) error {
+	defer s.WaitGroup.Wait()
+	s.WaitGroup.Add(1)
+	defer s.WaitGroup.Done()
+	if !s.Bool.CompareAndSwap(false, true) {
 		return context.Canceled
 	}
-	b.WaitGroup.Add(1)
 	host, err := os.Hostname()
 	if err != nil {
 		return err
 	}
-	b.Broker, err = broker.New(pipe)
+	s.Broker, err = broker.New(pipe)
 	if err != nil {
 		return err
 	}
-	err = b.Broker.Listen(ctx, "block", host, "1")
+	defer s.Broker.Shutdown()
+	err = s.Broker.Listen(ctx, "block", host, "1")
 	if err != nil {
 		return err
 	}
-	b.Storage, err = storage.New(file)
+	s.Storage, err = storage.New(file)
 	if err != nil {
 		return err
 	}
-	b.Repository, err = repository.New(base)
+	defer s.Storage.Shutdown()
+	s.Repository, err = repository.New(base)
 	if err != nil {
 		return err
 	}
+	defer s.Repository.Shutdown()
 	h := chi.NewRouter()
 	h.Use(middleware.SetHeader("Server", "NoCopy"))
 	h.Use(middleware.Logger)
 	h.Use(middleware.Recoverer)
-	h.Put("/*", b.Put)
-	h.Get("/*", b.Get)
-	h.Delete("/*", b.Delete)
-	b.Size = size
-	b.Handler = h
-	b.Addr = net.JoinHostPort(addr, port)
-	b.BaseContext = func(net.Listener) context.Context { return ctx }
-	b.Mutex.Unlock()
-	defer b.Mutex.Lock()
-	return b.Server.ListenAndServe()
+	h.Put("/*", s.Put)
+	h.Get("/*", s.Get)
+	h.Delete("/*", s.Delete)
+	s.Size = size
+	s.Handler = h
+	s.Addr = net.JoinHostPort(addr, port)
+	s.BaseContext = func(net.Listener) context.Context { return ctx }
+	s.Server.RegisterOnShutdown(s.Broker.Finish)
+	return s.Server.ListenAndServe()
 }
 
-func (b *Block) Stop() {
-	b.Mutex.Lock()
+func (s *Block) Stop() {
+	if s.Bool.CompareAndSwap(false, true) {
+		return
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
-	if b.Broker != nil {
-		_ = b.Broker.Shutdown(ctx)
-		_ = b.Server.Shutdown(ctx)
-		if b.Storage != nil {
-			_ = b.Storage.Shutdown(ctx)
-			if b.Repository != nil {
-				_ = b.Repository.Shutdown(ctx)
-			}
-		}
-	}
-	if !b.Bool.CompareAndSwap(false, true) {
-		defer b.WaitGroup.Done()
-	}
-	b.Mutex.Unlock()
+	_ = s.Server.Shutdown(ctx)
 }
