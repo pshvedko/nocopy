@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/url"
 	"strings"
 
@@ -21,12 +22,17 @@ type Subscriber interface {
 type Broker struct {
 	*url.URL
 	*nats.Conn
-	handler      map[string]func(context.Context, message.Query) (message.Reply, error)
+	handler      map[string]message.Handler
+	catcher      map[string]message.Catcher
 	subscription []Subscriber
 	topic        [3]string
 }
 
-func (b *Broker) Handle(method string, handler func(context.Context, message.Query) (message.Reply, error)) {
+func (b *Broker) Catch(method string, catcher message.Catcher) {
+	b.catcher[method] = catcher
+}
+
+func (b *Broker) Handle(method string, handler message.Handler) {
 	b.handler[method] = handler
 }
 
@@ -34,14 +40,33 @@ func (b *Broker) Listen(_ context.Context, topic, host, id string) error {
 	b.topic = [3]string{topic, host, id}
 	for i := 1; i < 4; i++ {
 		at := b.At(i)
-		println("=============== LISTEN", at, topic)
 		s, err := b.Conn.QueueSubscribe(at, topic, b.onMessage)
 		if err != nil {
 			return err
 		}
 		b.subscription = append(b.subscription, s)
+		slog.Warn("LISTEN", "by", topic, "at", at)
 	}
 	return b.Conn.Flush()
+}
+
+func (b *Broker) Finish() {
+	slog.Warn("FINISH")
+	if b == nil {
+		return
+	}
+	for i := range b.subscription {
+		_ = b.subscription[i].Unsubscribe()
+	}
+	b.subscription = b.subscription[:0]
+}
+
+func (b *Broker) Shutdown() {
+	if b == nil {
+		return
+	}
+	b.Finish()
+	b.Conn.Close()
 }
 
 type Query struct {
@@ -71,7 +96,8 @@ func (q Query) BY() string {
 }
 
 func (q Query) ID() uuid.UUID {
-	return uuid.MustParse(strings.Join(q.m.Header["ID"], "-"))
+	id, _ := uuid.Parse(strings.Join(q.m.Header["ID"], "-"))
+	return id
 }
 
 func (q Query) Unmarshal(a any) error {
@@ -82,28 +108,37 @@ func (q Query) Unmarshal(a any) error {
 	return json.Unmarshal(q.m.Data, a)
 }
 
-func (q Query) Error(err error) {
+func (q Query) WithError(err error) Query {
 	ff := q.FF()
 	ff[1] = err.Error()
 	q.m.Header["FF"] = ff[:]
+	return q
 }
 
 func (b *Broker) onMessage(m *nats.Msg) {
-	_ = m.InProgress()
 	q := Query{m: m}
-	h, ok := b.handler[q.BY()]
-	if ok {
-		r, err := h(context.TODO(), q)
-		switch {
-		case err != nil:
-			r = message.Body{}
-			q.Error(err)
-			fallthrough
-		case r != nil:
-			_, _ = b.send(message.Backward{Header: q}, r)
+	by := q.BY()
+	ff := q.FF()
+	slog.Warn("READ", "by", by, "id", q.ID(), "flag", ff, "at", q.AT(), "to", q.TO(), "path", q.RE())
+	switch ff[0] {
+	case "F":
+		h, ok := b.handler[by]
+		if ok {
+			r, err := h(context.TODO(), q)
+			switch {
+			case err != nil:
+				q = q.WithError(err)
+				fallthrough
+			case r != nil:
+				_, _ = b.send(message.Backward{Header: q}, message.Body{Any: r})
+			}
+		}
+	case "R":
+		c, ok := b.catcher[by]
+		if ok {
+			c(context.TODO(), q)
 		}
 	}
-	_ = m.Ack()
 }
 
 func (b *Broker) send(h message.Header, r message.Reply) (uuid.UUID, error) {
@@ -113,6 +148,7 @@ func (b *Broker) send(h message.Header, r message.Reply) (uuid.UUID, error) {
 	}
 	ff := h.FF()
 	id := h.ID()
+	slog.Warn("SEND", "by", h.BY(), "id", id, "flag", ff, "at", h.AT(), "to", h.TO(), "path", h.RE())
 	return id, b.Conn.PublishMsg(&nats.Msg{
 		Subject: h.TO(),
 		Reply:   h.AT(),
@@ -134,37 +170,19 @@ func (b *Broker) Send(_ context.Context, to, by string, v any, oo ...any) (id uu
 	return b.send(message.Toward{To: to, By: by, Address: a}, message.Body{Any: v})
 }
 
-func (b *Broker) Finish() {
-	println("=============== FINISH")
-	if b == nil {
-		return
-	}
-	for i := range b.subscription {
-		_ = b.subscription[i].Unsubscribe()
-	}
-	b.subscription = b.subscription[:0]
-}
-
-func (b *Broker) Shutdown() {
-	if b == nil {
-		return
-	}
-	b.Finish()
-	b.Conn.Close()
-}
-
 func (b *Broker) At(n int) string {
 	return strings.Join(b.topic[:n], ":")
 }
 
 func New(ur1 *url.URL) (*Broker, error) {
-	conn, err := nats.Connect(ur1.String())
+	conn, err := nats.Connect(ur1.String(), nats.NoEcho())
 	if err != nil {
 		return nil, err
 	}
 	return &Broker{
 		URL:     ur1,
 		Conn:    conn,
-		handler: make(map[string]func(context.Context, message.Query) (message.Reply, error)),
+		handler: make(map[string]message.Handler),
+		catcher: make(map[string]message.Catcher),
 	}, nil
 }

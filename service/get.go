@@ -63,7 +63,7 @@ func (s *Block) Get(w http.ResponseWriter, r *http.Request) {
 				}
 				length += multipart.Digits(ranges[n].Start, ranges[n].Start+ranges[n].Length-1, size)
 			}
-			part = append(part, fmt.Sprintf("%020d", s.Uint64.Add(1)))
+			part = append(part, fmt.Sprintf("%020d", s.Boundary.Add(1)))
 			part = append(part, mime)
 			mime = "multipart/byte" + "ranges; boundary=" + part[0]
 		}

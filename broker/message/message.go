@@ -114,19 +114,3 @@ func (b Backward) FF() [3]string {
 	ff[0] = "R"
 	return ff
 }
-
-func (b Backward) RE() []string {
-	re := b.Header.RE()
-	if n := len(re); n > 0 {
-		return re[:n-1]
-	}
-	return nil
-}
-
-func (b Backward) TO() string {
-	re := b.Header.RE()
-	if n := len(re); n > 0 {
-		return re[n-1]
-	}
-	return ""
-}

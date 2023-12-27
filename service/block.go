@@ -29,14 +29,18 @@ type Server interface {
 	Shutdown(context.Context) error
 }
 
+type Boundary struct {
+	atomic.Uint64
+}
+
 type Block struct {
 	http.Server
 	broker.Broker
 	storage.Storage
 	repository.Repository
-	atomic.Uint64
 	atomic.Bool
 	sync.WaitGroup
+	Boundary
 	Size int64
 }
 
@@ -56,6 +60,7 @@ func (s *Block) Run(ctx context.Context, addr, port, base, file, pipe string, si
 		return err
 	}
 	defer s.Broker.Shutdown()
+	s.Broker.Catch("file", s.FileReply)
 	err = s.Broker.Listen(ctx, "block", host, "1")
 	if err != nil {
 		return err
