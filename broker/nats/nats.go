@@ -86,58 +86,51 @@ func (b Body) Marshal() ([]byte, error) {
 	}
 }
 
-type Query struct {
+type Message struct {
 	m *nats.Msg
 }
 
-func (q Query) Marshal() ([]byte, error) {
-	return q.m.Data, nil
+func (m Message) Marshal() ([]byte, error) {
+	return m.m.Data, nil
 }
 
-func (q Query) OF() [3]string {
+func (m Message) OF() [3]string {
 	var ff [3]string
-	copy(ff[:], q.m.Header["OF"])
+	copy(ff[:], m.m.Header["OF"])
 	return ff
 }
 
-func (q Query) AT() string {
-	return q.m.Subject
+func (m Message) AT() string {
+	return m.m.Subject
 }
 
-func (q Query) TO() string {
-	return q.m.Reply
+func (m Message) TO() string {
+	return m.m.Reply
 }
 
-func (q Query) RE() []string {
-	return q.m.Header["RE"]
+func (m Message) RE() []string {
+	return m.m.Header["RE"]
 }
 
-func (q Query) BY() string {
-	return strings.Join(q.m.Header["BY"], ".")
+func (m Message) BY() string {
+	return strings.Join(m.m.Header["BY"], ".")
 }
 
-func (q Query) ID() uuid.UUID {
-	id, _ := uuid.Parse(strings.Join(q.m.Header["ID"], "-"))
+func (m Message) ID() uuid.UUID {
+	id, _ := uuid.Parse(strings.Join(m.m.Header["ID"], "-"))
 	return id
 }
 
-func (q Query) Unmarshal(a any) error {
-	ff := q.OF()
-	if len(ff[1]) > 0 {
-		return errors.New(ff[1])
+func (m Message) Unmarshal(a any) error {
+	of := m.OF()
+	if len(of[1]) > 0 {
+		return errors.New(of[1])
 	}
-	return json.Unmarshal(q.m.Data, a)
-}
-
-func (q Query) WithError(err error) Query {
-	ff := q.OF()
-	ff[1] = err.Error()
-	q.m.Header["OF"] = ff[:]
-	return q
+	return json.Unmarshal(m.m.Data, a)
 }
 
 func (b *Broker) onMessage(m *nats.Msg) {
-	q := Query{m: m}
+	q := message.New().WithMessage(Message{m: m})
 	by := q.BY()
 	of := q.OF()
 	slog.Warn("READ", "by", by, "id", q.ID(), "of", of, "at", q.AT(), "from", q.TO(), "path", q.RE())
