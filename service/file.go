@@ -2,21 +2,32 @@ package service
 
 import (
 	"context"
-	"log/slog"
-	"time"
-
 	"github.com/google/uuid"
+	"log/slog"
 
 	"github.com/pshvedko/nocopy/api"
 	"github.com/pshvedko/nocopy/broker/message"
 	"github.com/pshvedko/nocopy/service/io"
 )
 
-func (s *Block) FileReply(_ context.Context, q message.Query) {
+func (s *Proxy) FileQuery(ctx context.Context, m message.Message) (any, error) {
+	s.Add(1)
+	defer s.Done()
+	_, err := s.Broker.Message(ctx, "chain", m.BY(), m, message.Forward{Header: m})
+	return nil, err
+}
+
+func (s *Proxy) FileReply(ctx context.Context, m message.Message) {
+	s.Add(1)
+	defer s.Done()
+	_, _ = s.Broker.Send(ctx, message.Backward{Message: m})
+}
+
+func (s *Block) FileReply(_ context.Context, m message.Message) {
 	s.Add(1)
 	defer s.Done()
 	var reply api.FileReply
-	err := q.Unmarshal(&reply)
+	err := m.Unmarshal(&reply)
 	if err != nil {
 		slog.Warn("file", "err", err)
 	} else {
@@ -24,25 +35,23 @@ func (s *Block) FileReply(_ context.Context, q message.Query) {
 	}
 }
 
-func (s *Chain) FileHandle(ctx context.Context, q message.Query) (any, error) {
+func (s *Chain) FileQuery(ctx context.Context, m message.Message) (any, error) {
 	s.Add(1)
 	defer s.Done()
 	var file api.File
-	err := q.Unmarshal(&file)
+	err := m.Unmarshal(&file)
 	if err != nil {
 		return nil, err
 	}
+	slog.Warn("file", "file", file)
 	err = s.File(ctx, file.Chains, file.Blocks, file.Hashes, file.Sizes)
 	if err != nil {
 		return nil, err
 	}
-	return api.FileReply{
-		Time: time.Now(),
-	}, nil
+	return nil, io.EOF
 }
 
 func (s *Chain) File(ctx context.Context, chains []uuid.UUID, blocks []uuid.UUID, hashes [][]byte, sizes []int64) error {
-	slog.Warn("file", "chains", chains, "blocks", blocks, "sizes", sizes)
 	for i := range blocks {
 		similarities, err := s.Repository.Lookup(ctx, hashes[i], sizes[i])
 		if err != nil {

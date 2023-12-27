@@ -2,6 +2,6 @@ package message
 
 import "context"
 
-type Handler func(context.Context, Query) (any, error)
+type Handler func(context.Context, Message) (any, error)
 
-type Catcher func(context.Context, Query)
+type Catcher func(context.Context, Message)

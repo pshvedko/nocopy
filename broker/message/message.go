@@ -1,7 +1,6 @@
 package message
 
 import (
-	"encoding/json"
 	"errors"
 
 	"github.com/google/uuid"
@@ -15,13 +14,14 @@ type Address interface {
 
 type Header interface {
 	Address
-	FF() [3]string
+	OF() [3]string
 	BY() string
 	TO() string
 }
 
-type Query interface {
+type Message interface {
 	Header
+	Reply
 	Unmarshal(any) error
 }
 
@@ -77,23 +77,12 @@ func MakeAddress(at string, oo []any) (Address, error) {
 	return o, err
 }
 
-type Body struct {
-	Any any
-}
-
-func (b Body) Marshal() ([]byte, error) {
-	if b.Any != nil {
-		return json.Marshal(b.Any)
-	}
-	return nil, nil
-}
-
 type Toward struct {
 	To, By string
 	Address
 }
 
-func (h Toward) FF() [3]string {
+func (h Toward) OF() [3]string {
 	return [3]string{"F"}
 }
 
@@ -105,12 +94,40 @@ func (h Toward) TO() string {
 	return h.To
 }
 
-type Backward struct {
+type Respond struct {
 	Header
 }
 
-func (b Backward) FF() [3]string {
-	ff := b.Header.FF()
+func (h Respond) OF() [3]string {
+	ff := h.Header.OF()
 	ff[0] = "R"
 	return ff
+}
+
+type Forward struct {
+	Header
+}
+
+func (h Forward) RE() []string {
+	return append(h.Header.RE(), h.TO())
+}
+
+type Backward struct {
+	Message
+}
+
+func (h Backward) TO() string {
+	re := h.Message.RE()
+	if n := len(re); n > 0 {
+		return re[n-1]
+	}
+	return ""
+}
+
+func (h Backward) RE() []string {
+	re := h.Message.RE()
+	if n := len(re); n > 0 {
+		return re[:n-1]
+	}
+	return nil
 }

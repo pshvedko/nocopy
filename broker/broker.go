@@ -12,13 +12,14 @@ import (
 )
 
 type Broker interface {
+	At(int) string
 	Handle(string, message.Handler)
 	Catch(string, message.Catcher)
-	Send(context.Context, string, string, any, ...any) (uuid.UUID, error)
+	Message(context.Context, string, string, any, ...any) (uuid.UUID, error)
+	Send(context.Context, message.Message, ...any) (uuid.UUID, error)
 	Listen(context.Context, string, string, string) error
 	Finish()
 	Shutdown()
-	At(int) string
 }
 
 func New(name string) (Broker, error) {

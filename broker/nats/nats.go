@@ -69,13 +69,38 @@ func (b *Broker) Shutdown() {
 	b.Conn.Close()
 }
 
+type Body struct {
+	Any any
+}
+
+func (b Body) Marshal() ([]byte, error) {
+	switch a := b.Any.(type) {
+	case nil:
+		slog.Warn("=========== NULL")
+		return nil, nil
+	case message.Reply:
+		slog.Warn("=========== COPY")
+		return a.Marshal()
+	case json.Marshaler:
+		slog.Warn("=========== JSON")
+		return a.MarshalJSON()
+	default:
+		slog.Warn("=========== NONE")
+		return json.Marshal(b.Any)
+	}
+}
+
 type Query struct {
 	m *nats.Msg
 }
 
-func (q Query) FF() [3]string {
+func (q Query) Marshal() ([]byte, error) {
+	return q.m.Data, nil
+}
+
+func (q Query) OF() [3]string {
 	var ff [3]string
-	copy(ff[:], q.m.Header["FF"])
+	copy(ff[:], q.m.Header["OF"])
 	return ff
 }
 
@@ -101,7 +126,7 @@ func (q Query) ID() uuid.UUID {
 }
 
 func (q Query) Unmarshal(a any) error {
-	ff := q.FF()
+	ff := q.OF()
 	if len(ff[1]) > 0 {
 		return errors.New(ff[1])
 	}
@@ -109,18 +134,18 @@ func (q Query) Unmarshal(a any) error {
 }
 
 func (q Query) WithError(err error) Query {
-	ff := q.FF()
+	ff := q.OF()
 	ff[1] = err.Error()
-	q.m.Header["FF"] = ff[:]
+	q.m.Header["OF"] = ff[:]
 	return q
 }
 
 func (b *Broker) onMessage(m *nats.Msg) {
 	q := Query{m: m}
 	by := q.BY()
-	ff := q.FF()
-	slog.Warn("READ", "by", by, "id", q.ID(), "flag", ff, "at", q.AT(), "to", q.TO(), "path", q.RE())
-	switch ff[0] {
+	of := q.OF()
+	slog.Warn("READ", "by", by, "id", q.ID(), "of", of, "at", q.AT(), "to", q.TO(), "re", q.RE())
+	switch of[0] {
 	case "F":
 		h, ok := b.handler[by]
 		if ok {
@@ -130,7 +155,7 @@ func (b *Broker) onMessage(m *nats.Msg) {
 				q = q.WithError(err)
 				fallthrough
 			case r != nil:
-				_, _ = b.send(message.Backward{Header: q}, message.Body{Any: r})
+				_, _ = b.send(message.Respond{Header: q}, Body{Any: r})
 			}
 		}
 	case "R":
@@ -146,9 +171,9 @@ func (b *Broker) send(h message.Header, r message.Reply) (uuid.UUID, error) {
 	if err != nil {
 		return uuid.UUID{}, err
 	}
-	ff := h.FF()
+	of := h.OF()
 	id := h.ID()
-	slog.Warn("SEND", "by", h.BY(), "id", id, "flag", ff, "at", h.AT(), "to", h.TO(), "path", h.RE())
+	slog.Warn("SEND", "by", h.BY(), "id", id, "of", of, "at", h.AT(), "to", h.TO(), "re", h.RE())
 	return id, b.Conn.PublishMsg(&nats.Msg{
 		Subject: h.TO(),
 		Reply:   h.AT(),
@@ -156,18 +181,22 @@ func (b *Broker) send(h message.Header, r message.Reply) (uuid.UUID, error) {
 			"ID": strings.Split(id.String(), "-"),
 			"BY": strings.Split(h.BY(), "."),
 			"RE": h.RE(),
-			"FF": ff[:],
+			"OF": of[:],
 		},
 		Data: bytes,
 	})
 }
 
-func (b *Broker) Send(_ context.Context, to, by string, v any, oo ...any) (id uuid.UUID, err error) {
+func (b *Broker) Message(_ context.Context, to, by string, v any, oo ...any) (id uuid.UUID, err error) {
 	a, err := message.MakeAddress(b.At(3), oo)
 	if err != nil {
 		return
 	}
-	return b.send(message.Toward{To: to, By: by, Address: a}, message.Body{Any: v})
+	return b.send(message.Toward{To: to, By: by, Address: a}, Body{Any: v})
+}
+
+func (b *Broker) Send(_ context.Context, m message.Message, oo ...any) (uuid.UUID, error) {
+	return b.send(m, m)
 }
 
 func (b *Broker) At(n int) string {
