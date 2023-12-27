@@ -105,11 +105,16 @@ func (h Respond) OF() [3]string {
 }
 
 type Forward struct {
-	Header
+	To string
+	Message
+}
+
+func (h Forward) TO() string {
+	return h.To
 }
 
 func (h Forward) RE() []string {
-	return append(h.Header.RE(), h.TO())
+	return append(h.Message.RE(), h.Message.TO())
 }
 
 type Backward struct {

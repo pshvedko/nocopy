@@ -76,16 +76,12 @@ type Body struct {
 func (b Body) Marshal() ([]byte, error) {
 	switch a := b.Any.(type) {
 	case nil:
-		slog.Warn("=========== NULL")
 		return nil, nil
 	case message.Reply:
-		slog.Warn("=========== COPY")
 		return a.Marshal()
 	case json.Marshaler:
-		slog.Warn("=========== JSON")
 		return a.MarshalJSON()
 	default:
-		slog.Warn("=========== NONE")
 		return json.Marshal(b.Any)
 	}
 }
@@ -144,7 +140,7 @@ func (b *Broker) onMessage(m *nats.Msg) {
 	q := Query{m: m}
 	by := q.BY()
 	of := q.OF()
-	slog.Warn("READ", "by", by, "id", q.ID(), "of", of, "at", q.AT(), "to", q.TO(), "re", q.RE())
+	slog.Warn("READ", "by", by, "id", q.ID(), "of", of, "at", q.AT(), "from", q.TO(), "path", q.RE())
 	switch of[0] {
 	case "F":
 		h, ok := b.handler[by]
@@ -173,7 +169,7 @@ func (b *Broker) send(h message.Header, r message.Reply) (uuid.UUID, error) {
 	}
 	of := h.OF()
 	id := h.ID()
-	slog.Warn("SEND", "by", h.BY(), "id", id, "of", of, "at", h.AT(), "to", h.TO(), "re", h.RE())
+	slog.Warn("SEND", "by", h.BY(), "id", id, "of", of, "at", h.AT(), "to", h.TO(), "path", h.RE())
 	return id, b.Conn.PublishMsg(&nats.Msg{
 		Subject: h.TO(),
 		Reply:   h.AT(),

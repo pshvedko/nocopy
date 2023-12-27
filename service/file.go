@@ -13,7 +13,7 @@ import (
 func (s *Proxy) FileQuery(ctx context.Context, m message.Message) (any, error) {
 	s.Add(1)
 	defer s.Done()
-	_, err := s.Broker.Message(ctx, "chain", m.BY(), m, message.Forward{Header: m})
+	_, err := s.Broker.Send(ctx, message.Forward{To: "chain", Message: m})
 	return nil, err
 }
 
