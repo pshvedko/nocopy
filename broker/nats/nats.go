@@ -2,11 +2,11 @@ package nats
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/url"
 	"strings"
+	"sync"
 
 	"github.com/google/uuid"
 
@@ -26,6 +26,7 @@ type Broker struct {
 	catcher      map[string]message.Catcher
 	subscription []Subscriber
 	topic        [3]string
+	mu           sync.Mutex
 }
 
 func (b *Broker) Catch(method string, catcher message.Catcher) {
@@ -37,6 +38,8 @@ func (b *Broker) Handle(method string, handler message.Handler) {
 }
 
 func (b *Broker) Listen(_ context.Context, topic, host, id string) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
 	b.topic = [3]string{topic, host, id}
 	for i := 1; i < 4; i++ {
 		at := b.At(i)
@@ -51,6 +54,8 @@ func (b *Broker) Listen(_ context.Context, topic, host, id string) error {
 }
 
 func (b *Broker) Finish() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
 	slog.Warn("FINISH")
 	if b == nil {
 		return
@@ -74,16 +79,7 @@ type Body struct {
 }
 
 func (b Body) Marshal() ([]byte, error) {
-	switch a := b.Any.(type) {
-	case nil:
-		return nil, nil
-	case message.Reply:
-		return a.Marshal()
-	case json.Marshaler:
-		return a.MarshalJSON()
-	default:
-		return json.Marshal(b.Any)
-	}
+	return message.Marshal(b.Any)
 }
 
 type Message struct {
@@ -126,7 +122,7 @@ func (m Message) Unmarshal(a any) error {
 	if len(of[1]) > 0 {
 		return errors.New(of[1])
 	}
-	return json.Unmarshal(m.m.Data, a)
+	return message.Unmarshal(m.m.Data, a)
 }
 
 func (b *Broker) onMessage(m *nats.Msg) {
@@ -155,7 +151,7 @@ func (b *Broker) onMessage(m *nats.Msg) {
 	}
 }
 
-func (b *Broker) send(h message.Header, r message.Reply) (uuid.UUID, error) {
+func (b *Broker) send(h message.Header, r message.Marshaler) (uuid.UUID, error) {
 	bytes, err := r.Marshal()
 	if err != nil {
 		return uuid.UUID{}, err

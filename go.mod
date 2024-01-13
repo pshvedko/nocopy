@@ -4,6 +4,7 @@ go 1.21.4
 
 require (
 	github.com/go-chi/chi/v5 v5.0.10
+	github.com/golang/protobuf v1.5.3
 	github.com/google/uuid v1.4.0
 	github.com/gotd/contrib v0.19.0
 	github.com/jackc/pgx/v5 v5.5.1
@@ -11,6 +12,7 @@ require (
 	github.com/minio/minio-go/v7 v7.0.65
 	github.com/nats-io/nats.go v1.31.0
 	github.com/spf13/cobra v1.8.0
+	google.golang.org/protobuf v1.30.0
 )
 
 require (

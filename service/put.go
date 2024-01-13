@@ -13,6 +13,8 @@ import (
 )
 
 func (s *Block) Put(w http.ResponseWriter, r *http.Request) {
+	s.Add(1)
+	defer s.Done()
 	var blocks []uuid.UUID
 	var hashes [][]byte
 	var sizes []int64

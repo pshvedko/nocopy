@@ -61,6 +61,7 @@ func (s *Block) Run(ctx context.Context, addr, port, base, file, pipe string, si
 	}
 	defer s.Broker.Shutdown()
 	s.Broker.Catch("file", s.FileReply)
+	s.Broker.Catch("head", s.HeadReply)
 	err = s.Broker.Listen(ctx, "block", host, "1")
 	if err != nil {
 		return err
@@ -82,6 +83,7 @@ func (s *Block) Run(ctx context.Context, addr, port, base, file, pipe string, si
 	h.Put("/*", s.Put)
 	h.Get("/*", s.Get)
 	h.Delete("/*", s.Delete)
+	h.Head("/*", s.Head)
 	s.Size = size
 	s.Handler = h
 	s.Addr = net.JoinHostPort(addr, port)

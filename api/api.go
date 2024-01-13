@@ -1,5 +1,7 @@
 package api
 
+//go:generate protoc -I . --go_out=. head.proto
+
 import (
 	"github.com/google/uuid"
 	"time"

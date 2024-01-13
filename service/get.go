@@ -15,6 +15,8 @@ import (
 )
 
 func (s *Block) Get(w http.ResponseWriter, r *http.Request) {
+	s.Add(1)
+	defer s.Done()
 	var err error
 	var ranges []multipart.Range
 	var blocks []uuid.UUID

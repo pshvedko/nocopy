@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/google/uuid"
 	"log/slog"
+	"time"
 
 	"github.com/pshvedko/nocopy/api"
 	"github.com/pshvedko/nocopy/broker/message"
@@ -48,7 +49,7 @@ func (s *Chain) FileQuery(ctx context.Context, m message.Message) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return nil, io.EOF
+	return api.FileReply{Time: time.Now()}, nil
 }
 
 func (s *Chain) File(ctx context.Context, chains []uuid.UUID, blocks []uuid.UUID, hashes [][]byte, sizes []int64) error {

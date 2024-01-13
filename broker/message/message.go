@@ -1,6 +1,7 @@
 package message
 
 import (
+	"encoding/json"
 	"errors"
 
 	"github.com/google/uuid"
@@ -19,13 +20,41 @@ type Header interface {
 	TO() string
 }
 
+func Marshal(a any) ([]byte, error) {
+	switch x := a.(type) {
+	case nil:
+		return nil, nil
+	case Marshaler:
+		return x.Marshal()
+	case json.Marshaler:
+		return x.MarshalJSON()
+	default:
+		return json.Marshal(a)
+	}
+}
+
+func Unmarshal(b []byte, a any) error {
+	switch x := a.(type) {
+	case Unmarshaler:
+		return x.Unmarshal(b)
+	case json.Unmarshaler:
+		return x.UnmarshalJSON(b)
+	default:
+		return json.Unmarshal(b, a)
+	}
+}
+
 type Message interface {
 	Header
-	Reply
+	Marshaler
 	Unmarshal(any) error
 }
 
-type Reply interface {
+type Unmarshaler interface {
+	Unmarshal([]byte) error
+}
+
+type Marshaler interface {
 	Marshal() ([]byte, error)
 }
 

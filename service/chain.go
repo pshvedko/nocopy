@@ -35,6 +35,7 @@ func (s *Chain) Run(ctx context.Context, base, file, pipe string) error {
 	}
 	defer s.Broker.Shutdown()
 	s.Broker.Handle("file", s.FileQuery)
+	s.Broker.Handle("head", s.HeadQuery)
 	err = s.Broker.Listen(ctx, "chain", host, "1")
 	if err != nil {
 		return err
