@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -27,6 +28,39 @@ type Broker struct {
 	subscription []Subscriber
 	topic        [3]string
 	mu           sync.Mutex
+}
+
+func (b *Broker) Request(_ context.Context, to, by string, v any, oo ...any) (uuid.UUID, message.Message, error) {
+	a, err := message.MakeAddress(b.At(3), oo)
+	if err != nil {
+		return uuid.UUID{}, nil, err
+	}
+	return b.request(message.Toward{To: to, By: by, Address: a}, Body{Any: v})
+}
+
+func (b *Broker) request(h message.Header, r message.Marshaler) (uuid.UUID, message.Message, error) {
+	bytes, err := r.Marshal()
+	if err != nil {
+		return uuid.UUID{}, nil, err
+	}
+	of := h.OF()
+	id := h.ID()
+	slog.Warn("SYNC", "by", h.BY(), "id", id, "of", of, "at", h.AT(), "to", h.TO(), "path", h.RE())
+	m, err := b.Conn.RequestMsg(&nats.Msg{
+		Subject: h.TO(),
+		Reply:   h.AT(),
+		Header: nats.Header{
+			"ID": strings.Split(id.String(), "-"),
+			"BY": strings.Split(h.BY(), "."),
+			"RE": h.RE(),
+			"OF": of[:],
+		},
+		Data: bytes,
+	}, time.Minute)
+	if err != nil {
+		return uuid.UUID{}, nil, err
+	}
+	return id, Message{m: m}, nil
 }
 
 func (b *Broker) Catch(method string, catcher message.Catcher) {
@@ -172,16 +206,20 @@ func (b *Broker) send(h message.Header, r message.Marshaler) (uuid.UUID, error) 
 	})
 }
 
-func (b *Broker) Message(_ context.Context, to, by string, v any, oo ...any) (id uuid.UUID, err error) {
+func (b *Broker) Message(_ context.Context, to, by string, v any, oo ...any) (uuid.UUID, error) {
 	a, err := message.MakeAddress(b.At(3), oo)
 	if err != nil {
-		return
+		return uuid.UUID{}, err
 	}
 	return b.send(message.Toward{To: to, By: by, Address: a}, Body{Any: v})
 }
 
 func (b *Broker) Send(_ context.Context, m message.Message, oo ...any) (uuid.UUID, error) {
-	return b.send(m, m)
+	h, err := message.MakeHeader(m, oo...)
+	if err != nil {
+		return uuid.UUID{}, err
+	}
+	return b.send(h, m)
 }
 
 func (b *Broker) At(n int) string {

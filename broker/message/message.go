@@ -78,6 +78,32 @@ func (o Option) AT() string {
 	return o.at()
 }
 
+func MakeHeader(m Message, oo ...any) (Header, error) {
+	if len(oo) == 0 {
+		return m, nil
+	}
+	b := New().WithMessage(m)
+	for _, o := range oo {
+		switch x := o.(type) {
+		case error:
+			b = b.WithError(x)
+		case bool:
+			b = b.WithStraight(x)
+		case [16]byte:
+			b = b.WithID(x)
+		case []string:
+			b = b.WithPath(x...)
+		case string:
+			b = b.WithFrom(x)
+		case Address:
+			b = b.WithID(x.ID()).WithFrom(x.AT()).WithPath(x.RE()...)
+		default:
+			return nil, ErrOption
+		}
+	}
+	return b, nil
+}
+
 func MakeAddress(at string, oo []any) (Address, error) {
 	var o Option
 	var err error

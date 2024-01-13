@@ -13,27 +13,21 @@ import (
 func (s *Block) Head(w http.ResponseWriter, r *http.Request) {
 	s.Add(1)
 	defer s.Done()
-	id, err := s.Broker.Message(r.Context(), "proxy", "head", &api.Head{Name: path.Clean(r.URL.Path)})
+	id, reply, err := s.Broker.Request(r.Context(), "proxy", "head", &api.Head{Name: path.Clean(r.URL.Path)})
 	if err == nil {
-		w.Header().Set("X-Request-ID", id.String())
-		w.WriteHeader(http.StatusOK)
-		return
+		var head api.HeadReply
+		err = reply.Unmarshal(&head)
+		if err == nil {
+			for _, block := range head.GetBlockUUID() {
+				w.Header().Add("X-Correlation-ID", block.String())
+			}
+			w.Header().Set("X-Request-ID", id.String())
+			w.WriteHeader(http.StatusOK)
+			return
+		}
 	}
 	w.WriteHeader(http.StatusInternalServerError)
 	slog.Error("get", "err", err)
-}
-
-func (s *Block) HeadReply(ctx context.Context, m message.Message) {
-	s.Add(1)
-	defer s.Done()
-	var head api.HeadReply
-	err := m.Unmarshal(&head)
-	switch err {
-	case nil:
-		slog.Warn("head", "block", head.Block, "size", head.Size)
-	default:
-		slog.Error("head", "err", err)
-	}
 }
 
 func (s *Proxy) HeadQuery(ctx context.Context, m message.Message) (any, error) {
@@ -63,8 +57,8 @@ func (s *Chain) HeadQuery(ctx context.Context, m message.Message) (any, error) {
 		return nil, err
 	}
 	var block [][]byte
-	for _, uuid := range blocks {
-		block = append(block, uuid[:])
+	for i := range blocks {
+		block = append(block, blocks[i][:])
 	}
 	return &api.HeadReply{
 		Block: block,

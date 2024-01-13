@@ -19,10 +19,30 @@ type Builder interface {
 	WithInvert() Builder
 	WithMethod(string) Builder
 	WithPath(...string) Builder
+	WithStraight(bool) Builder
 }
 
 type Wrapper struct {
 	Message
+}
+
+type Straight struct {
+	Message
+	of bool
+}
+
+func (m Straight) OF() [3]string {
+	of := m.Message.OF()
+	if m.of {
+		of[0] = "F"
+	} else {
+		of[0] = "R"
+	}
+	return of
+}
+
+func (m Wrapper) WithStraight(of bool) Builder {
+	return Wrapper{Message: Straight{Message: m, of: of}}
 }
 
 func (m Wrapper) WithMessage(copy Message) Builder { return Wrapper{Message: copy} }

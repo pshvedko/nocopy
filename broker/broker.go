@@ -16,6 +16,7 @@ type Broker interface {
 	Handle(string, message.Handler)
 	Catch(string, message.Catcher)
 	Message(context.Context, string, string, any, ...any) (uuid.UUID, error)
+	Request(context.Context, string, string, any, ...any) (uuid.UUID, message.Message, error)
 	Send(context.Context, message.Message, ...any) (uuid.UUID, error)
 	Listen(context.Context, string, string, string) error
 	Finish()
