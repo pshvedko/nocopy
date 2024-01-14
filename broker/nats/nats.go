@@ -16,16 +16,12 @@ import (
 	"github.com/pshvedko/nocopy/broker/message"
 )
 
-type Subscriber interface {
-	Unsubscribe() error
-}
-
 type Broker struct {
 	*url.URL
 	*nats.Conn
 	handler      map[string]message.Handler
 	catcher      map[string]message.Catcher
-	subscription []Subscriber
+	subscription []*nats.Subscription
 	topic        [3]string
 	mu           sync.Mutex
 }
@@ -90,14 +86,14 @@ func (b *Broker) Listen(_ context.Context, topic, host, id string) error {
 func (b *Broker) Finish() {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	slog.Warn("FINISH")
 	if b == nil {
 		return
 	}
-	for i := range b.subscription {
-		_ = b.subscription[i].Unsubscribe()
+	for _, s := range b.subscription {
+		_ = s.Unsubscribe()
+		slog.Warn("FINISH", "at", s.Subject)
 	}
-	b.subscription = b.subscription[:0]
+	b.subscription = nil
 }
 
 func (b *Broker) Shutdown() {

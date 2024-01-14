@@ -2,13 +2,12 @@ package service
 
 import (
 	"context"
+	"github.com/pshvedko/nocopy/api"
+	"github.com/pshvedko/nocopy/broker/message"
 	"log/slog"
 	"net/http"
 	"path"
 	"strconv"
-
-	"github.com/pshvedko/nocopy/api"
-	"github.com/pshvedko/nocopy/broker/message"
 )
 
 func (s *Block) Head(w http.ResponseWriter, r *http.Request) {
@@ -25,7 +24,7 @@ func (s *Block) Head(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	w.WriteHeader(http.StatusInternalServerError)
-	slog.Error("get", "err", err)
+	slog.Error("head", "err", err)
 }
 
 func (s *Proxy) HeadQuery(ctx context.Context, m message.Message) (any, error) {

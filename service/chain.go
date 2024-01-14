@@ -19,9 +19,6 @@ type Chain struct {
 }
 
 func (s *Chain) Run(ctx context.Context, base, file, pipe string) error {
-	defer s.WaitGroup.Wait()
-	s.WaitGroup.Add(1)
-	defer s.WaitGroup.Done()
 	if !s.Bool.CompareAndSwap(false, true) {
 		return context.Canceled
 	}
@@ -50,7 +47,11 @@ func (s *Chain) Run(ctx context.Context, base, file, pipe string) error {
 		return err
 	}
 	defer s.Repository.Shutdown()
+	defer s.WaitGroup.Wait()
+	s.WaitGroup.Add(1)
+	defer s.WaitGroup.Done()
 	<-ctx.Done()
+	s.Broker.Finish()
 	return nil
 }
 

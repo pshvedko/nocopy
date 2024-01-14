@@ -16,9 +16,6 @@ type Proxy struct {
 }
 
 func (s *Proxy) Run(ctx context.Context, pipe string) error {
-	defer s.WaitGroup.Wait()
-	s.WaitGroup.Add(1)
-	defer s.WaitGroup.Done()
 	if !s.Bool.CompareAndSwap(false, true) {
 		return context.Canceled
 	}
@@ -40,6 +37,10 @@ func (s *Proxy) Run(ctx context.Context, pipe string) error {
 		return err
 	}
 	<-ctx.Done()
+	defer s.WaitGroup.Wait()
+	s.WaitGroup.Add(1)
+	defer s.WaitGroup.Done()
+	s.Broker.Finish()
 	return nil
 }
 
