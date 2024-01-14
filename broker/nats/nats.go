@@ -91,7 +91,7 @@ func (b *Broker) Finish() {
 	}
 	for _, s := range b.subscription {
 		_ = s.Unsubscribe()
-		slog.Warn("FINISH", "at", s.Subject)
+		slog.Warn("FINISH", "by", s.Queue, "at", s.Subject)
 	}
 	b.subscription = nil
 }
