@@ -32,3 +32,11 @@ func (x *HeadReply) GetBlockUUID() uuid.UUIDs {
 	}
 	return blocks
 }
+
+func (x *HeadReply) GetLength() int64 {
+	var size int64
+	for i := range x.Size {
+		size += x.Size[i]
+	}
+	return size
+}

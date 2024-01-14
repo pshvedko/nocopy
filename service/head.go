@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"path"
+	"strconv"
 
 	"github.com/pshvedko/nocopy/api"
 	"github.com/pshvedko/nocopy/broker/message"
@@ -13,15 +14,12 @@ import (
 func (s *Block) Head(w http.ResponseWriter, r *http.Request) {
 	s.Add(1)
 	defer s.Done()
-	id, reply, err := s.Broker.Request(r.Context(), "proxy", "head", &api.Head{Name: path.Clean(r.URL.Path)})
+	_, reply, err := s.Broker.Request(r.Context(), "proxy", "head", &api.Head{Name: path.Clean(r.URL.Path)})
 	if err == nil {
 		var head api.HeadReply
 		err = reply.Unmarshal(&head)
 		if err == nil {
-			for _, block := range head.GetBlockUUID() {
-				w.Header().Add("X-Correlation-ID", block.String())
-			}
-			w.Header().Set("X-Request-ID", id.String())
+			w.Header().Set("Content-Length", strconv.FormatInt(head.GetLength(), 10))
 			w.WriteHeader(http.StatusOK)
 			return
 		}
