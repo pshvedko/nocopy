@@ -41,7 +41,7 @@ func (b *Broker) request(h message.Header, r message.Marshaler) (uuid.UUID, mess
 	}
 	of := h.OF()
 	id := h.ID()
-	slog.Warn("SYNC", "by", h.BY(), "id", id, "of", of, "at", h.AT(), "to", h.TO(), "path", h.RE())
+	slog.Debug("SYNC", "by", h.BY(), "id", id, "of", of, "at", h.AT(), "to", h.TO(), "path", h.RE())
 	m, err := b.Conn.RequestMsg(&nats.Msg{
 		Subject: h.TO(),
 		Reply:   h.AT(),
@@ -78,7 +78,7 @@ func (b *Broker) Listen(_ context.Context, topic, host, id string) error {
 			return err
 		}
 		b.subscription = append(b.subscription, s)
-		slog.Warn("LISTEN", "by", topic, "at", at)
+		slog.Info("LISTEN", "by", topic, "at", at)
 	}
 	return b.Conn.Flush()
 }
@@ -91,7 +91,7 @@ func (b *Broker) Finish() {
 	}
 	for _, s := range b.subscription {
 		_ = s.Unsubscribe()
-		slog.Warn("FINISH", "by", s.Queue, "at", s.Subject)
+		slog.Info("FINISH", "by", s.Queue, "at", s.Subject)
 	}
 	b.subscription = nil
 }
@@ -159,7 +159,7 @@ func (b *Broker) onMessage(m *nats.Msg) {
 	q := message.New().WithMessage(Message{m: m})
 	by := q.BY()
 	of := q.OF()
-	slog.Warn("READ", "by", by, "id", q.ID(), "of", of, "at", q.AT(), "from", q.TO(), "path", q.RE())
+	slog.Debug("READ", "by", by, "id", q.ID(), "of", of, "at", q.AT(), "from", q.TO(), "path", q.RE())
 	switch of[0] {
 	case "F":
 		h, ok := b.handler[by]
@@ -188,7 +188,7 @@ func (b *Broker) send(h message.Header, r message.Marshaler) (uuid.UUID, error) 
 	}
 	of := h.OF()
 	id := h.ID()
-	slog.Warn("SEND", "by", h.BY(), "id", id, "of", of, "at", h.AT(), "to", h.TO(), "path", h.RE())
+	slog.Debug("SEND", "by", h.BY(), "id", id, "of", of, "at", h.AT(), "to", h.TO(), "path", h.RE())
 	return id, b.Conn.PublishMsg(&nats.Msg{
 		Subject: h.TO(),
 		Reply:   h.AT(),

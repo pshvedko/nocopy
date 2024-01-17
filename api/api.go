@@ -17,3 +17,7 @@ type File struct {
 type FileReply struct {
 	Time time.Time `json:"time"`
 }
+
+type Echo struct {
+	Serial int `json:"serial"`
+}

@@ -32,6 +32,7 @@ func (s *Proxy) Run(ctx context.Context, pipe string) error {
 	s.Broker.Catch("file", s.FileReply)
 	s.Broker.Handle("head", s.HeadQuery)
 	s.Broker.Catch("head", s.HeadReply)
+	s.Broker.Handle("echo", s.EchoQuery)
 	err = s.Broker.Listen(ctx, "proxy", host, "1")
 	if err != nil {
 		return err
