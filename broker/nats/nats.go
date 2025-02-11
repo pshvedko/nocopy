@@ -73,7 +73,9 @@ func (b *Broker) Listen(_ context.Context, topic, host, id string) error {
 	b.topic = [3]string{topic, host, id}
 	for i := 1; i < 4; i++ {
 		at := b.At(i)
-		s, err := b.Conn.QueueSubscribe(at, topic, b.onMessage)
+		s, err := b.Conn.QueueSubscribe(at, topic, func(m *nats.Msg) {
+			go b.onMessage(m)
+		})
 		if err != nil {
 			return err
 		}

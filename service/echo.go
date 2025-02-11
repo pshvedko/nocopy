@@ -11,6 +11,8 @@ import (
 	"github.com/pshvedko/nocopy/broker/message"
 )
 
+const maxInFly = 64 * 1024
+
 func (s *Proxy) Echo(ctx context.Context, concurrency, quantity int, pipe string) error {
 	if !s.Bool.CompareAndSwap(false, true) {
 		return context.Canceled
@@ -24,7 +26,11 @@ func (s *Proxy) Echo(ctx context.Context, concurrency, quantity int, pipe string
 		return err
 	}
 	defer s.Broker.Shutdown()
-	s.Broker.Catch("echo", s.EchoReply)
+	q := make(chan struct{}, maxInFly)
+	s.Broker.Catch("echo", func(ctx context.Context, m message.Message) {
+		s.EchoReply(ctx, m)
+		<-q
+	})
 	slog.Info("echo", "concurrency", concurrency, "quantity", quantity)
 	err = s.Broker.Listen(ctx, "echo", host, "1")
 	if err != nil {
@@ -38,6 +44,7 @@ func (s *Proxy) Echo(ctx context.Context, concurrency, quantity int, pipe string
 			var err error
 			for n := range c {
 				s.Add(1)
+				q <- struct{}{}
 				_, err = s.Broker.Message(ctx, "proxy", "echo", api.Echo{Serial: n})
 				if err != nil {
 					break
@@ -51,6 +58,7 @@ func (s *Proxy) Echo(ctx context.Context, concurrency, quantity int, pipe string
 		select {
 		case <-ctx.Done():
 			done = true
+			slog.Warn("interrupt")
 		default:
 			select {
 			case c <- i:
@@ -66,7 +74,8 @@ func (s *Proxy) Echo(ctx context.Context, concurrency, quantity int, pipe string
 	close(e)
 	s.WaitGroup.Wait()
 	s.Broker.Finish()
-	slog.Info("echo", "time", time.Since(t)/time.Duration(quantity))
+	since := time.Since(t)
+	slog.Info("echo", "time", since/time.Duration(quantity))
 	return nil
 }
 
@@ -74,6 +83,10 @@ func (s *Proxy) EchoQuery(_ context.Context, m message.Message) (any, error) {
 	return m, nil
 }
 
-func (s *Proxy) EchoReply(context.Context, message.Message) {
+func (s *Proxy) EchoReply(_ context.Context, m message.Message) {
+	err := m.Unmarshal(&api.Echo{})
+	if err != nil {
+		slog.Error("echo", "err", err)
+	}
 	s.Done()
 }
