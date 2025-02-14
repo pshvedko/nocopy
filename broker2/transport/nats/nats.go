@@ -33,7 +33,7 @@ func (t *Transport) QueueSubscribe(at string, queue string, f func(string, messa
 	})
 }
 
-func New(u url.URL) (*Transport, error) {
+func New(u *url.URL) (*Transport, error) {
 	c, err := nats.Connect(u.String(), nats.NoEcho())
 	if err != nil {
 		return nil, err

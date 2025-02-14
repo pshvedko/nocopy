@@ -38,7 +38,7 @@ func NewTransport(name string) (exchange.Transport, error) {
 	}
 	switch u.Scheme {
 	case "nats":
-		return nats.New(*u)
+		return nats.New(u)
 	default:
 		return nil, errors.New("invalid broker scheme")
 	}

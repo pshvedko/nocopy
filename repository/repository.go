@@ -23,13 +23,13 @@ type Repository interface {
 }
 
 func New(name string) (Repository, error) {
-	ur1, err := url.Parse(name)
+	u, err := url.Parse(name)
 	if err != nil {
 		return nil, err
 	}
-	switch ur1.Scheme {
+	switch u.Scheme {
 	case "postgres":
-		return postgres.New(ur1)
+		return postgres.New(u)
 	default:
 		return nil, errors.New("invalid repository scheme")
 	}
