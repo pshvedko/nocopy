@@ -23,21 +23,21 @@ type Broker interface {
 }
 
 func New(name string) (Broker, error) {
-	u, err := url.Parse(name)
-	if err != nil {
-		return nil, err
-	}
-	t, err := NewTransport(*u)
+	t, err := NewTransport(name)
 	if err != nil {
 		return nil, err
 	}
 	return NewExchange(t), nil
 }
 
-func NewTransport(u url.URL) (Transport, error) {
+func NewTransport(name string) (Transport, error) {
+	u, err := url.Parse(name)
+	if err != nil {
+		return nil, err
+	}
 	switch u.Scheme {
 	case "nats":
-		return nats.New(u)
+		return nats.New(*u)
 	default:
 		return nil, errors.New("invalid broker scheme")
 	}
