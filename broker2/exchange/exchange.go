@@ -3,9 +3,10 @@ package exchange
 import (
 	"context"
 	"fmt"
-	"github.com/google/uuid"
-	"github.com/pshvedko/nocopy/broker2/exchange/message"
+	"github.com/pshvedko/nocopy/broker2/message"
 	"log/slog"
+
+	"github.com/google/uuid"
 )
 
 type Subscription interface {
@@ -24,7 +25,7 @@ type Exchange struct {
 	subscriptions []Subscription
 }
 
-func NewExchange(transport Transport) *Exchange {
+func New(transport Transport) *Exchange {
 	return &Exchange{
 		transport: transport,
 	}

@@ -1,10 +1,12 @@
 package nats
 
 import (
-	"github.com/nats-io/nats.go"
-	"github.com/pshvedko/nocopy/broker2"
-	"github.com/pshvedko/nocopy/broker2/exchange/message"
 	"net/url"
+
+	"github.com/nats-io/nats.go"
+
+	"github.com/pshvedko/nocopy/broker2/exchange"
+	"github.com/pshvedko/nocopy/broker2/message"
 )
 
 type Transport struct {

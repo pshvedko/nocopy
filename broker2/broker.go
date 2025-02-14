@@ -7,8 +7,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/pshvedko/nocopy/broker2/exchange/message"
-	"github.com/pshvedko/nocopy/broker2/exchange/transport/nats"
+	"github.com/pshvedko/nocopy/broker2/exchange"
+	"github.com/pshvedko/nocopy/broker2/message"
+	"github.com/pshvedko/nocopy/broker2/transport/nats"
 )
 
 type Broker interface {
@@ -27,10 +28,10 @@ func New(name string) (Broker, error) {
 	if err != nil {
 		return nil, err
 	}
-	return NewExchange(t), nil
+	return exchange.New(t), nil
 }
 
-func NewTransport(name string) (Transport, error) {
+func NewTransport(name string) (exchange.Transport, error) {
 	u, err := url.Parse(name)
 	if err != nil {
 		return nil, err
