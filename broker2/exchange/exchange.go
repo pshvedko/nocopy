@@ -82,7 +82,7 @@ func New(transport Transport) *Exchange {
 	}
 }
 
-func (e *Exchange) Get(method string) []message.Middleware {
+func (e *Exchange) Middleware(method string) []message.Middleware {
 	return append(e.wrapper, e.functor[method]...)
 }
 

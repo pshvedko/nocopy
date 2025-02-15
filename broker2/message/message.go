@@ -63,7 +63,7 @@ type Middleware interface {
 }
 
 type Mediator interface {
-	Get(string) []Middleware
+	Middleware(string) []Middleware
 }
 
 type Envelope struct {
@@ -152,7 +152,7 @@ func Decode(ctx context.Context, bytes []byte, mediator Mediator) (context.Conte
 		}
 		switch r.Envelope.Type {
 		case Query, Broadcast:
-			for _, w := range mediator.Get(r.Envelope.Method) {
+			for _, w := range mediator.Middleware(r.Envelope.Method) {
 				uu = append(uu,
 					func(bytes []byte) (err error) {
 						i++
@@ -198,9 +198,39 @@ func Decode(ctx context.Context, bytes []byte, mediator Mediator) (context.Conte
 	return ctx, r, nil
 }
 
-func Encode(ctx context.Context, message Message, mediator Mediator) (string, []byte, error) {
-	//TODO implement me
-	panic("implement me")
+type MarshalFunc func() ([]byte, error)
+
+func (f MarshalFunc) MarshalJSON() ([]byte, error) { return f() }
+
+func Encode(ctx context.Context, m Message, mediator Mediator) ([]byte, error) {
+	ww := mediator.Middleware(m.Method())
+	mm := append(make([]MarshalFunc, 0, 2+len(ww)), func() ([]byte, error) {
+		return json.Marshal(Envelope{
+			ID:     m.ID(),
+			From:   m.From(),
+			Return: m.Return(),
+			To:     m.To(),
+			Type:   m.Type(),
+			Method: m.Method(),
+		})
+	})
+
+	for _, w := range ww {
+		mm = append(mm, func() ([]byte, error) {
+			return w.Encode(ctx)
+		})
+	}
+
+	mm = append(mm, func() ([]byte, error) {
+		return m.Encode()
+	})
+
+	bytes, err := json.Marshal(mm)
+	if err != nil {
+		return nil, err
+	}
+
+	return bytes, nil
 }
 
 type Body interface {

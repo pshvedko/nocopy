@@ -19,11 +19,11 @@ func (t *Transport) Unsubscribe(topic exchange.Topic) error {
 }
 
 func (t *Transport) Publish(ctx context.Context, m message.Message, w message.Mediator) error {
-	to, bytes, err := message.Encode(ctx, m, w)
+	bytes, err := message.Encode(ctx, m, w)
 	if err != nil {
 		return err
 	}
-	return t.conn.Publish(to, bytes)
+	return t.conn.Publish(m.To(), bytes)
 }
 
 func (t *Transport) Subscribe(ctx context.Context, at string, w message.Mediator, r exchange.Doer) (exchange.Subscription, error) {

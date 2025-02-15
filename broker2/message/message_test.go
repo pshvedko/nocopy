@@ -14,7 +14,7 @@ import (
 
 type Mediator []message.Middleware
 
-func (m Mediator) Get(string) []message.Middleware {
+func (m Mediator) Middleware(string) []message.Middleware {
 	return m
 }
 
