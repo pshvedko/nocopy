@@ -11,6 +11,7 @@ require (
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/minio/minio-go/v7 v7.0.65
 	github.com/nats-io/nats.go v1.31.0
+	github.com/puzpuzpuz/xsync/v3 v3.5.0
 	github.com/spf13/cobra v1.8.0
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.8.3
@@ -36,7 +37,6 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rs/xid v1.5.0 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
-	github.com/stretchr/objx v0.5.0 // indirect
 	golang.org/x/crypto v0.14.0 // indirect
 	golang.org/x/net v0.17.0 // indirect
 	golang.org/x/sync v0.2.0 // indirect

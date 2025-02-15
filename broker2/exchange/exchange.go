@@ -3,26 +3,68 @@ package exchange
 import (
 	"context"
 	"fmt"
-	"github.com/pshvedko/nocopy/broker2/message"
-	"log/slog"
+	"sync"
+	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/pshvedko/nocopy/broker2/message"
 )
 
 type Subscription interface {
 	Unsubscribe() error
+	Drain() error
 }
 
+type Handler func(context.Context, string, []byte)
+
 type Transport interface {
+	message.Decoder
 	Flush() error
-	Subscribe(at string, f func(string, message.Message)) (Subscription, error)
-	QueueSubscribe(at string, queue string, f func(string, message.Message)) (Subscription, error)
+	Subscribe(context.Context, string, Handler) (Subscription, error)
+	QueueSubscribe(context.Context, string, string, Handler) (Subscription, error)
+	Unsubscribe(Subscription) error
+	Prefix() [2]string
+	Close()
+}
+
+type Topic struct {
+	subject string
+	Subscription
+}
+
+func (t Topic) String() string {
+	return t.subject
+}
+
+type Map[K comparable, V any] struct {
+	m sync.Map
+}
+
+func (s *Map[K, V]) Store(key K, value V) {
+	s.m.Store(key, value)
+}
+
+func (s *Map[K, V]) Delete(key K) bool {
+	_, ok := s.m.LoadAndDelete(key)
+	return ok
+}
+
+func (s *Map[K, V]) Range(f func(key K, value V) bool) {
+	s.m.Range(func(key, value any) bool {
+		return f(key.(K), value.(V))
+	})
+}
+
+type Child struct {
+	sync.WaitGroup
+	Map[context.Context, context.CancelFunc]
 }
 
 type Exchange struct {
-	transport     Transport
-	topic         [2][]string
-	subscriptions []Subscription
+	transport Transport
+	topic     [2][]Topic
+	child     Child
 }
 
 func New(transport Transport) *Exchange {
@@ -56,29 +98,32 @@ func (e *Exchange) Send(ctx context.Context, message message.Message, options ..
 	panic("implement me")
 }
 
+// Listen ...
 func (e *Exchange) Listen(ctx context.Context, at string, to ...string) error {
-	a := fmt.Sprint("@", at)
-	u := fmt.Sprint("#", at)
+	p := e.transport.Prefix()
+	a := fmt.Sprint(p[0], at)
+	u := fmt.Sprint(p[1], at)
 
 	for {
-		s, err := e.transport.Subscribe(a, e.route)
+		s, err := e.transport.Subscribe(ctx, a, e.Read)
 		if err != nil {
 			return err
 		}
-		slog.Info("LISTEN", "at", a)
 
-		e.subscriptions = append(e.subscriptions, s)
+		e.topic[0] = append(e.topic[0], Topic{
+			subject:      a,
+			Subscription: s,
+		})
 
-		s, err = e.transport.QueueSubscribe(u, at, e.route)
+		s, err = e.transport.QueueSubscribe(ctx, u, at, e.Read)
 		if err != nil {
 			return err
 		}
-		slog.Info("LISTEN", "at", u)
 
-		e.subscriptions = append(e.subscriptions, s)
-
-		e.topic[0] = append(e.topic[0], a)
-		e.topic[1] = append(e.topic[1], u)
+		e.topic[1] = append(e.topic[1], Topic{
+			subject:      u,
+			Subscription: s,
+		})
 
 		if len(to) == 0 {
 			break
@@ -93,16 +138,50 @@ func (e *Exchange) Listen(ctx context.Context, at string, to ...string) error {
 	return e.transport.Flush()
 }
 
+func (e *Exchange) Read(ctx context.Context, topic string, bytes []byte) {
+	ctx, m, err := e.transport.Decode(ctx, topic, bytes)
+	if err != nil {
+		return
+	}
+
+	ctx, cancel := context.WithCancel(ctx)
+
+	e.child.Add(1)
+	e.child.Store(ctx, cancel)
+
+	go func() {
+
+		_ = m // _, _ = handler(ctx) // FIXME
+
+		<-ctx.Done()
+
+		<-time.After(5 * time.Second)
+
+		e.child.Delete(ctx)
+		e.child.Done()
+		cancel()
+	}()
+}
+
 func (e *Exchange) Finish() {
-	//TODO implement me
-	panic("implement me")
+	for _, topic := range &e.topic {
+		for _, t := range topic {
+			_ = e.transport.Unsubscribe(t)
+		}
+	}
+	e.child.Range(func(ctx context.Context, cancel context.CancelFunc) bool {
+		ok := e.child.Delete(ctx)
+		if ok {
+			cancel()
+		}
+		return true
+	})
+	e.child.Wait()
+	e.topic[0] = e.topic[0][:0]
+	e.topic[1] = e.topic[1][:0]
 }
 
 func (e *Exchange) Shutdown() {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (e *Exchange) route(topic string, message message.Message) {
-
+	e.Finish()
+	e.transport.Close()
 }
