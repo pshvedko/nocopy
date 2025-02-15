@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/google/uuid"
 )
 
 var (
 	ErrRedundantMessage = errors.New("redundant message")
+	ErrIllegalType      = errors.New("illegal type")
 	ErrNoPayload        = errors.New("no payload")
 	ErrEmpty            = errors.New("empty")
 )
@@ -26,18 +28,10 @@ type Message interface {
 	Address
 }
 
-type Middleware interface {
-	Decode(context.Context, []byte) (context.Context, error)
-}
-
 type MiddlewareFunc func(context.Context, []byte) (context.Context, error)
 
-func (f MiddlewareFunc) Decode(ctx context.Context, bytes []byte) (context.Context, error) {
-	return f(ctx, bytes)
-}
-
 type Mediator interface {
-	Middleware(string, string) ([]Middleware, error)
+	Middleware(string, string) []MiddlewareFunc
 }
 
 type Decoder interface {
@@ -50,12 +44,22 @@ type Envelope struct {
 	Return []string  `json:"return,omitempty"`
 	To     string    `json:"to,omitempty"`
 	Type   int       `json:"type,omitempty"`
-	Handle string    `json:"handle,omitempty"`
+	Method string    `json:"method,omitempty"`
+}
+
+type Error struct {
+	Code int    `json:"code,omitempty"`
+	Text string `json:"text,omitempty"`
+}
+
+func (e Error) Error() string {
+	return e.Text
 }
 
 type Raw struct {
+	Error
 	Envelope
-	Payload json.RawMessage
+	RawMessage json.RawMessage
 }
 
 func (r Raw) ID() uuid.UUID {
@@ -79,7 +83,7 @@ func (r Raw) Type() int {
 }
 
 func (r Raw) Handle() string {
-	return r.Envelope.Handle
+	return r.Envelope.Method
 }
 
 type UnmarshalFunc func([]byte) error
@@ -88,39 +92,51 @@ func (f UnmarshalFunc) UnmarshalJSON(bytes []byte) error { return f(bytes) }
 
 func Decode(ctx context.Context, topic string, bytes []byte, m Mediator) (context.Context, Message, error) {
 	var i int
+	var u int
+	var v interface{}
 	var r Raw
 	var uu []UnmarshalFunc
-	var ww []Middleware
 
 	uu = append(uu, func(bytes []byte) error {
+		v = &r.Error
 		i++
 		err := json.Unmarshal(bytes, &r.Envelope)
 		if err != nil {
 			return err
 		}
-		ww, err = m.Middleware(topic, r.Envelope.Handle)
-		if err != nil {
-			return err
-		}
-		for _, w := range ww {
+		switch r.Envelope.Type {
+		case 0:
+			// Middleware + Payload
+			for _, w := range m.Middleware(topic, r.Envelope.Method) {
+				uu = append(uu,
+					func(bytes []byte) (err error) {
+						i++
+						ctx, err = w(ctx, bytes)
+						return
+					},
+				)
+				u++
+			}
+			fallthrough
+		case 1:
+			// Payload
+			v = &r.RawMessage
+			fallthrough
+		case 2:
+			// Error
 			uu = append(uu,
-				func(bytes []byte) (err error) {
+				func(bytes []byte) error {
 					i++
-					ctx, err = w.Decode(ctx, bytes)
-					return
+					return json.Unmarshal(bytes, v)
+				},
+				func(bytes []byte) error {
+					i++
+					return ErrRedundantMessage
 				},
 			)
+		default:
+			return ErrIllegalType
 		}
-		uu = append(uu,
-			func(bytes []byte) error {
-				i++
-				return json.Unmarshal(bytes, &r.Payload)
-			},
-			func(bytes []byte) error {
-				i++
-				return ErrRedundantMessage
-			},
-		)
 		return nil
 	})
 
@@ -132,7 +148,7 @@ func Decode(ctx context.Context, topic string, bytes []byte, m Mediator) (contex
 	switch i {
 	case 0:
 		return nil, nil, ErrEmpty
-	case 1 + len(ww):
+	case 1 + u:
 		return nil, nil, ErrNoPayload
 	}
 
@@ -149,17 +165,24 @@ type Body interface {
 	Encode() ([]byte, error)
 }
 
-type content[T any] struct {
+type Content[T any] struct {
 	a T
 }
 
-func (c content[T]) Encode() ([]byte, error) {
+func (c Content[T]) Encode() ([]byte, error) {
 	return json.Marshal(c.a)
 }
 
-func Content[T any](a T) Body {
-	return content[T]{
+func NewContent[T any](a T) Body {
+	return Content[T]{
 		a: a,
+	}
+}
+
+func NewFailure[T any](code int, err T) error {
+	return Error{
+		Code: code,
+		Text: fmt.Sprint(err),
 	}
 }
 

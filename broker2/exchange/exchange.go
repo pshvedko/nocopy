@@ -65,6 +65,9 @@ type Exchange struct {
 	transport Transport
 	topic     [2][]Topic
 	child     Child
+	handler   map[string]message.Handler
+	catcher   map[string]message.Catcher
+	functor   map[string][]message.MiddlewareFunc
 }
 
 func New(transport Transport) *Exchange {
@@ -73,22 +76,24 @@ func New(transport Transport) *Exchange {
 	}
 }
 
-func (e *Exchange) Handle(by string, handler message.Handler) {
+func (e *Exchange) Middleware(topic string, method string) []message.MiddlewareFunc {
+	return e.functor[method]
+}
+
+func (e *Exchange) Handle(method string, handler message.Handler) {
+	e.handler[method] = handler
+}
+
+func (e *Exchange) Catch(method string, catcher message.Catcher) {
+	e.catcher[method] = catcher
+}
+
+func (e *Exchange) Message(ctx context.Context, to string, method string, body message.Body, options ...any) (uuid.UUID, error) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (e *Exchange) Catch(by string, catcher message.Catcher) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (e *Exchange) Message(ctx context.Context, to string, by string, body message.Body, options ...any) (uuid.UUID, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (e *Exchange) Request(ctx context.Context, to string, by string, body message.Body, options ...any) (uuid.UUID, message.Message, error) {
+func (e *Exchange) Request(ctx context.Context, to string, method string, body message.Body, options ...any) (uuid.UUID, message.Message, error) {
 	//TODO implement me
 	panic("implement me")
 }
@@ -136,11 +141,6 @@ func (e *Exchange) Listen(ctx context.Context, at string, to ...string) error {
 	}
 
 	return e.transport.Flush()
-}
-
-func (e *Exchange) Middleware(topic string, handle string) ([]message.Middleware, error) {
-	// FIXME
-	return nil, nil
 }
 
 func (e *Exchange) Read(ctx context.Context, topic string, bytes []byte) {

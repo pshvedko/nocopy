@@ -69,7 +69,7 @@ func TestExchange_Shutdown(t *testing.T) {
 		Return: []string{"path", "to", "home"},
 		To:     "me",
 		Type:   2,
-		Handle: "hello",
+		Method: "hello",
 	}
 	b, err := json.Marshal([]any{m, json.RawMessage{'{', '}'}})
 	require.NoError(t, err)
