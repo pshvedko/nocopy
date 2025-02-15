@@ -19,7 +19,6 @@ type Doer interface {
 }
 
 type Transport interface {
-	message.Formatter
 	Flush() error
 	Subscribe(context.Context, string, message.Mediator, Doer) (Subscription, error)
 	QueueSubscribe(context.Context, string, string, message.Mediator, Doer) (Subscription, error)

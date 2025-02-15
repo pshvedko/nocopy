@@ -66,11 +66,6 @@ type Mediator interface {
 	Get(string) []Middleware
 }
 
-type Formatter interface {
-	Decode(context.Context, []byte, Mediator) (context.Context, Message, error)
-	Encode(context.Context, Message, Mediator) (string, []byte, error)
-}
-
 type Envelope struct {
 	ID     uuid.UUID `json:"id,omitempty"`
 	From   string    `json:"from,omitempty"`
@@ -141,9 +136,7 @@ type UnmarshalFunc func([]byte) error
 
 func (f UnmarshalFunc) UnmarshalJSON(bytes []byte) error { return f(bytes) }
 
-type Format struct{}
-
-func (d Format) Decode(ctx context.Context, bytes []byte, mediator Mediator) (context.Context, Message, error) {
+func Decode(ctx context.Context, bytes []byte, mediator Mediator) (context.Context, Message, error) {
 	var i int
 	var u int
 	var v interface{}
@@ -205,7 +198,7 @@ func (d Format) Decode(ctx context.Context, bytes []byte, mediator Mediator) (co
 	return ctx, r, nil
 }
 
-func (d Format) Encode(ctx context.Context, message Message, mediator Mediator) (string, []byte, error) {
+func Encode(ctx context.Context, message Message, mediator Mediator) (string, []byte, error) {
 	//TODO implement me
 	panic("implement me")
 }

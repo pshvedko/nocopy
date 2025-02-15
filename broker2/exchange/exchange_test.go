@@ -36,19 +36,14 @@ func (s Subscription) Drain() error { return nil }
 
 func (s Subscription) Unsubscribe() error { return nil }
 
-type FormatTransport struct {
-	Transport
-	message.Format
-}
-
-func (f FormatTransport) Publish(context.Context, message.Message, message.Mediator) error {
+func (t Transport) Publish(context.Context, message.Message, message.Mediator) error {
 	//TODO implement me
 	panic("implement me")
 }
 
 func TestExchange_Listen(t *testing.T) {
 	transport := Transport{}
-	e := exchange.New(FormatTransport{Transport: transport})
+	e := exchange.New(transport)
 	err := e.Listen(context.TODO(), "test", "host", "id")
 	require.NoError(t, err)
 	require.Equal(t,
@@ -63,7 +58,8 @@ func TestExchange_Listen(t *testing.T) {
 }
 
 func TestExchange_Shutdown(t *testing.T) {
-	e := exchange.New(FormatTransport{Transport: Transport{}})
+	transport := Transport{}
+	e := exchange.New(transport)
 	e.Do(context.TODO(), message.Raw{
 		Envelope: message.Envelope{
 			ID:     uuid.New(),

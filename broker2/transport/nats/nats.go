@@ -12,7 +12,6 @@ import (
 
 type Transport struct {
 	conn *nats.Conn
-	message.Formatter
 }
 
 func (t *Transport) Unsubscribe(topic exchange.Topic) error {
@@ -20,7 +19,7 @@ func (t *Transport) Unsubscribe(topic exchange.Topic) error {
 }
 
 func (t *Transport) Publish(ctx context.Context, m message.Message, w message.Mediator) error {
-	to, bytes, err := t.Encode(ctx, m, w)
+	to, bytes, err := message.Encode(ctx, m, w)
 	if err != nil {
 		return err
 	}
@@ -29,7 +28,7 @@ func (t *Transport) Publish(ctx context.Context, m message.Message, w message.Me
 
 func (t *Transport) Subscribe(ctx context.Context, at string, w message.Mediator, r exchange.Doer) (exchange.Subscription, error) {
 	return t.conn.Subscribe(at, func(m *nats.Msg) {
-		ctx2, z, err := t.Decode(ctx, m.Data, w)
+		ctx2, z, err := message.Decode(ctx, m.Data, w)
 		if err != nil {
 			return
 		}
@@ -39,7 +38,7 @@ func (t *Transport) Subscribe(ctx context.Context, at string, w message.Mediator
 
 func (t *Transport) QueueSubscribe(ctx context.Context, at string, queue string, w message.Mediator, r exchange.Doer) (exchange.Subscription, error) {
 	return t.conn.QueueSubscribe(at, queue, func(m *nats.Msg) {
-		ctx2, q, err := t.Decode(ctx, m.Data, w)
+		ctx2, q, err := message.Decode(ctx, m.Data, w)
 		if err != nil {
 			return
 		}
@@ -55,13 +54,12 @@ func (t *Transport) Close() {
 	t.conn.Close()
 }
 
-func New(u *url.URL, decoder message.Formatter) (*Transport, error) {
+func New(u *url.URL) (*Transport, error) {
 	c, err := nats.Connect(u.String(), nats.NoEcho())
 	if err != nil {
 		return nil, err
 	}
 	return &Transport{
-		conn:      c,
-		Formatter: decoder,
+		conn: c,
 	}, nil
 }

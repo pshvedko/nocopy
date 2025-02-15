@@ -20,7 +20,6 @@ func (m Mediator) Get(string) []message.Middleware {
 
 func TestFormat_Decode(t *testing.T) {
 	ctx := context.TODO()
-	f := message.Format{}
 	e := message.Envelope{
 		ID:     uuid.New(),
 		From:   "any",
@@ -32,31 +31,31 @@ func TestFormat_Decode(t *testing.T) {
 
 	b, err := json.Marshal([]any{e, json.RawMessage{'{', '}'}})
 	require.NoError(t, err)
-	_, m, err := f.Decode(ctx, b, Mediator{})
+	_, m, err := message.Decode(ctx, b, Mediator{})
 	require.NoError(t, err)
 	require.Equal(t, message.Raw{Envelope: e, Body: []byte{'{', '}'}}, m)
 
 	b, err = json.Marshal([]any{})
 	require.NoError(t, err)
-	_, m, err = f.Decode(ctx, b, Mediator{})
+	_, m, err = message.Decode(ctx, b, Mediator{})
 	require.ErrorIs(t, err, message.ErrEmpty)
 	require.Nil(t, m)
 
 	b, err = json.Marshal([]any{e})
 	require.NoError(t, err)
-	_, m, err = f.Decode(ctx, b, Mediator{})
+	_, m, err = message.Decode(ctx, b, Mediator{})
 	require.ErrorIs(t, err, message.ErrNoPayload)
 	require.Nil(t, m)
 
 	b, err = json.Marshal([]any{e, json.RawMessage{'{', '}'}, json.RawMessage{'{', '}'}})
 	require.NoError(t, err)
-	_, m, err = f.Decode(ctx, b, Mediator{})
+	_, m, err = message.Decode(ctx, b, Mediator{})
 	require.ErrorIs(t, err, message.ErrRedundantMessage)
 	require.Nil(t, m)
 
 	b, err = json.Marshal([]any{e, json.RawMessage{'{', '"', 'a', '"', ':', '1', '}'}, json.RawMessage{'{', '}'}})
 	require.NoError(t, err)
-	ctx, m, err = f.Decode(ctx, b, Mediator{message.FormatFunc{
+	ctx, m, err = message.Decode(ctx, b, Mediator{message.FormatFunc{
 		DecodeFunc: middleware,
 		EncodeFunc: nil,
 	}})
