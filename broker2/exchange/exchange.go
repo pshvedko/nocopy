@@ -16,14 +16,13 @@ type Subscription interface {
 
 type Doer interface {
 	Do(context.Context, message.Message)
-	message.Mediator
 }
 
 type Transport interface {
 	message.Formatter
 	Flush() error
-	Subscribe(context.Context, string, Doer) (Subscription, error)
-	QueueSubscribe(context.Context, string, string, Doer) (Subscription, error)
+	Subscribe(context.Context, string, message.Mediator, Doer) (Subscription, error)
+	QueueSubscribe(context.Context, string, string, message.Mediator, Doer) (Subscription, error)
 	Publish(context.Context, message.Message, message.Mediator) error
 	Unsubscribe(Topic) error
 	Close()
@@ -121,7 +120,7 @@ func (e *Exchange) Listen(ctx context.Context, at string, to ...string) error {
 	u := fmt.Sprint("%", at)
 
 	for {
-		s, err := e.transport.Subscribe(ctx, a, e)
+		s, err := e.transport.Subscribe(ctx, a, e, e)
 		if err != nil {
 			return err
 		}
@@ -131,7 +130,7 @@ func (e *Exchange) Listen(ctx context.Context, at string, to ...string) error {
 			Subscription: s,
 		})
 
-		s, err = e.transport.QueueSubscribe(ctx, u, at, e)
+		s, err = e.transport.QueueSubscribe(ctx, u, at, e, e)
 		if err != nil {
 			return err
 		}

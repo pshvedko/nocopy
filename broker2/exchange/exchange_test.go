@@ -16,12 +16,12 @@ func (t Transport) Unsubscribe(u exchange.Topic) error {
 	return u.Unsubscribe()
 }
 
-func (t Transport) Subscribe(_ context.Context, at string, _ exchange.Doer) (exchange.Subscription, error) {
+func (t Transport) Subscribe(_ context.Context, at string, _ message.Mediator, _ exchange.Doer) (exchange.Subscription, error) {
 	t[at] = t[at] + 1
 	return Subscription(at), nil
 }
 
-func (t Transport) QueueSubscribe(_ context.Context, at string, _ string, _ exchange.Doer) (exchange.Subscription, error) {
+func (t Transport) QueueSubscribe(_ context.Context, at string, _ string, _ message.Mediator, _ exchange.Doer) (exchange.Subscription, error) {
 	t[at] = t[at] + 1
 	return Subscription(at), nil
 }

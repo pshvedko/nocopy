@@ -27,9 +27,9 @@ func (t *Transport) Publish(ctx context.Context, m message.Message, w message.Me
 	return t.conn.Publish(to, bytes)
 }
 
-func (t *Transport) Subscribe(ctx context.Context, at string, r exchange.Doer) (exchange.Subscription, error) {
+func (t *Transport) Subscribe(ctx context.Context, at string, w message.Mediator, r exchange.Doer) (exchange.Subscription, error) {
 	return t.conn.Subscribe(at, func(m *nats.Msg) {
-		ctx2, z, err := t.Decode(ctx, m.Data, r)
+		ctx2, z, err := t.Decode(ctx, m.Data, w)
 		if err != nil {
 			return
 		}
@@ -37,9 +37,9 @@ func (t *Transport) Subscribe(ctx context.Context, at string, r exchange.Doer) (
 	})
 }
 
-func (t *Transport) QueueSubscribe(ctx context.Context, at string, queue string, r exchange.Doer) (exchange.Subscription, error) {
+func (t *Transport) QueueSubscribe(ctx context.Context, at string, queue string, w message.Mediator, r exchange.Doer) (exchange.Subscription, error) {
 	return t.conn.QueueSubscribe(at, queue, func(m *nats.Msg) {
-		ctx2, q, err := t.Decode(ctx, m.Data, r)
+		ctx2, q, err := t.Decode(ctx, m.Data, w)
 		if err != nil {
 			return
 		}
