@@ -13,12 +13,12 @@ import (
 
 type Transport map[string]uint
 
-func (t Transport) Unsubscribe(s exchange.Subscription) error {
-	return s.Unsubscribe()
+func (t Transport) Unsubscribe(u exchange.Topic) error {
+	return u.Unsubscribe()
 }
 
-func (t Transport) Decode(ctx context.Context, topic string, bytes []byte, middlewares ...message.Middleware) (context.Context, message.Message, error) {
-	return message.Decode(ctx, topic, bytes, middlewares...)
+func (t Transport) Decode(ctx context.Context, topic string, bytes []byte, mediator message.Mediator) (context.Context, message.Message, error) {
+	return message.Decode(ctx, topic, bytes, mediator)
 }
 
 func (t Transport) Subscribe(ctx context.Context, at string, handler exchange.Handler) (exchange.Subscription, error) {

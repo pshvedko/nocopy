@@ -36,8 +36,12 @@ func (f MiddlewareFunc) Decode(ctx context.Context, bytes []byte) (context.Conte
 	return f(ctx, bytes)
 }
 
+type Mediator interface {
+	Middleware(string, string) ([]Middleware, error)
+}
+
 type Decoder interface {
-	Decode(context.Context, string, []byte, ...Middleware) (context.Context, Message, error)
+	Decode(context.Context, string, []byte, Mediator) (context.Context, Message, error)
 }
 
 type Envelope struct {
@@ -82,39 +86,45 @@ type UnmarshalFunc func([]byte) error
 
 func (f UnmarshalFunc) UnmarshalJSON(bytes []byte) error { return f(bytes) }
 
-func Decode(ctx context.Context, topic string, bytes []byte, middlewares ...Middleware) (context.Context, Message, error) {
+func Decode(ctx context.Context, topic string, bytes []byte, m Mediator) (context.Context, Message, error) {
 	var i int
 	var r Raw
+	var uu []UnmarshalFunc
+	var ww []Middleware
 
-	decoders := append(make([]UnmarshalFunc, 0, 3+len(middlewares)),
-		func(bytes []byte) error {
-			i++
-			return json.Unmarshal(bytes, &r.Envelope)
-		},
-	)
-
-	for _, middleware := range middlewares {
-		decoders = append(decoders,
-			func(bytes []byte) (err error) {
+	uu = append(uu, func(bytes []byte) error {
+		i++
+		err := json.Unmarshal(bytes, &r.Envelope)
+		if err != nil {
+			return err
+		}
+		ww, err = m.Middleware(topic, r.Envelope.Handle)
+		if err != nil {
+			return err
+		}
+		for _, w := range ww {
+			uu = append(uu,
+				func(bytes []byte) (err error) {
+					i++
+					ctx, err = w.Decode(ctx, bytes)
+					return
+				},
+			)
+		}
+		uu = append(uu,
+			func(bytes []byte) error {
 				i++
-				ctx, err = middleware.Decode(ctx, bytes)
-				return
+				return json.Unmarshal(bytes, &r.Payload)
+			},
+			func(bytes []byte) error {
+				i++
+				return ErrRedundantMessage
 			},
 		)
-	}
+		return nil
+	})
 
-	decoders = append(decoders,
-		func(bytes []byte) error {
-			i++
-			return json.Unmarshal(bytes, &r.Payload)
-		},
-		func(bytes []byte) error {
-			i++
-			return ErrRedundantMessage
-		},
-	)
-
-	err := json.Unmarshal(bytes, &decoders)
+	err := json.Unmarshal(bytes, &uu)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -122,17 +132,17 @@ func Decode(ctx context.Context, topic string, bytes []byte, middlewares ...Midd
 	switch i {
 	case 0:
 		return nil, nil, ErrEmpty
-	case 1 + len(middlewares):
+	case 1 + len(ww):
 		return nil, nil, ErrNoPayload
 	}
 
 	return ctx, r, nil
 }
 
-type DecodeFunc func(context.Context, string, []byte, ...Middleware) (context.Context, Message, error)
+type DecodeFunc func(context.Context, string, []byte, Mediator) (context.Context, Message, error)
 
-func (f DecodeFunc) Decode(ctx context.Context, topic string, bytes []byte, middlewares ...Middleware) (context.Context, Message, error) {
-	return f(ctx, topic, bytes, middlewares...)
+func (f DecodeFunc) Decode(ctx context.Context, topic string, bytes []byte, mediator Mediator) (context.Context, Message, error) {
+	return f(ctx, topic, bytes, mediator)
 }
 
 type Body interface {

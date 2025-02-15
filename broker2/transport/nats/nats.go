@@ -15,8 +15,8 @@ type Transport struct {
 	message.Decoder
 }
 
-func (t *Transport) Unsubscribe(s exchange.Subscription) error {
-	return s.Unsubscribe()
+func (t *Transport) Unsubscribe(topic exchange.Topic) error {
+	return topic.Unsubscribe()
 }
 
 func (t *Transport) Subscribe(ctx context.Context, at string, handler exchange.Handler) (exchange.Subscription, error) {

@@ -23,7 +23,7 @@ type Transport interface {
 	Flush() error
 	Subscribe(context.Context, string, Handler) (Subscription, error)
 	QueueSubscribe(context.Context, string, string, Handler) (Subscription, error)
-	Unsubscribe(Subscription) error
+	Unsubscribe(Topic) error
 	Prefix() [2]string
 	Close()
 }
@@ -138,8 +138,13 @@ func (e *Exchange) Listen(ctx context.Context, at string, to ...string) error {
 	return e.transport.Flush()
 }
 
+func (e *Exchange) Middleware(topic string, handle string) ([]message.Middleware, error) {
+	// FIXME
+	return nil, nil
+}
+
 func (e *Exchange) Read(ctx context.Context, topic string, bytes []byte) {
-	ctx, m, err := e.transport.Decode(ctx, topic, bytes)
+	ctx, m, err := e.transport.Decode(ctx, topic, bytes, e)
 	if err != nil {
 		return
 	}
