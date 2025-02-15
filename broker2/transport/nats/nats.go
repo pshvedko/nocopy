@@ -38,11 +38,11 @@ func (t *Transport) Subscribe(ctx context.Context, at string, w message.Mediator
 
 func (t *Transport) QueueSubscribe(ctx context.Context, at string, queue string, w message.Mediator, r exchange.Doer) (exchange.Subscription, error) {
 	return t.conn.QueueSubscribe(at, queue, func(m *nats.Msg) {
-		ctx2, q, err := message.Decode(ctx, m.Data, w)
+		ctx2, z, err := message.Decode(ctx, m.Data, w)
 		if err != nil {
 			return
 		}
-		r.Do(ctx2, q)
+		r.Do(ctx2, z)
 	})
 }
 
