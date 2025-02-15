@@ -14,10 +14,34 @@ type Builder interface {
 	WithReturn(...string) Builder
 	WithError(error) Builder
 	WithBody(any) Builder
+	Answer() Builder
 }
 
 type Wrapper struct {
 	Message
+}
+
+type WrapperAnswer struct {
+	Message
+}
+
+func (w WrapperAnswer) From() string {
+	return w.Message.To()
+}
+
+func (w WrapperAnswer) To() string {
+	return w.Message.From()
+}
+
+func (w WrapperAnswer) Type() Type {
+	if w.Message.Type() == Failure {
+		return Failure
+	}
+	return Answer
+}
+
+func (w Wrapper) Answer() Builder {
+	return Wrapper{Message: WrapperAnswer{Message: w}}
 }
 
 type WrapperWithID struct {
@@ -57,7 +81,7 @@ func (w Wrapper) WithBody(body any) Builder {
 	case Body:
 		return Wrapper{Message: WrapperWithBody{Message: w, body: body}}
 	default:
-		return Wrapper{Message: WrapperWithBody{Message: w, body: NewContent(body)}}
+		return Wrapper{Message: WrapperWithBody{Message: w, body: NewBody(body)}}
 	}
 }
 
@@ -141,7 +165,7 @@ func (w Wrapper) WithError(err error) Builder {
 	case Error:
 		return Wrapper{Message: WrapperWithError{Message: w, err: err}}
 	default:
-		return Wrapper{Message: WrapperWithError{Message: w, err: NewFailure(500, err)}}
+		return Wrapper{Message: WrapperWithError{Message: w, err: NewError(500, err)}}
 	}
 }
 

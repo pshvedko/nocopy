@@ -115,8 +115,8 @@ func (e *Exchange) Send(ctx context.Context, m message.Message, options ...any) 
 }
 
 func (e *Exchange) Listen(ctx context.Context, at string, to ...string) error {
-	a := fmt.Sprint("#", at)
-	u := fmt.Sprint("%", at)
+	a := at
+	u := at
 
 	for {
 		s, err := e.transport.Subscribe(ctx, a, e, e)
@@ -172,10 +172,12 @@ func (e *Exchange) Run(ctx context.Context, cancel context.CancelFunc, m message
 				m = m.WithError(err)
 				fallthrough
 			case r != nil:
-				_, _ = e.Send(ctx, m.WithBody(r)) // FIXME
+				if m.Type() == message.Query {
+					_, _ = e.Send(ctx, m.Answer().WithBody(r)) // FIXME
+				}
 			}
 		}
-	case message.Failure, message.Reply:
+	case message.Failure, message.Answer:
 		c, ok := e.catcher[m.Method()]
 		if ok {
 			c(ctx, m)

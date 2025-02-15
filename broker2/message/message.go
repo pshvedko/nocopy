@@ -20,7 +20,7 @@ type Type int
 
 const (
 	Query Type = iota
-	Reply
+	Answer
 	Failure
 	Broadcast
 )
@@ -163,7 +163,7 @@ func Decode(ctx context.Context, bytes []byte, mediator Mediator) (context.Conte
 				u++
 			}
 			fallthrough
-		case Reply:
+		case Answer:
 			v = &r.Body
 			fallthrough
 		case Failure:
@@ -245,13 +245,13 @@ func (c Content[T]) Encode() ([]byte, error) {
 	return json.Marshal(c.a)
 }
 
-func NewContent[T any](a T) Body {
+func NewBody[T any](a T) Body {
 	return Content[T]{
 		a: a,
 	}
 }
 
-func NewFailure[T any](code int, err T) Error {
+func NewError[T any](code int, err T) Error {
 	return Error{
 		Code: code,
 		Text: fmt.Sprint(err),
@@ -260,3 +260,21 @@ func NewFailure[T any](code int, err T) Error {
 
 type HandleFunc func(context.Context, Message) (Body, error)
 type CatchFunc func(context.Context, Message)
+
+type Empty struct{}
+
+func (e Empty) ID() uuid.UUID { return uuid.UUID{} }
+
+func (e Empty) From() string { return "" }
+
+func (e Empty) Return() []string { return nil }
+
+func (e Empty) To() string { return "" }
+
+func (e Empty) Type() Type { return 0 }
+
+func (e Empty) Method() string { return "" }
+
+func (e Empty) Encode() ([]byte, error) { return nil, nil }
+
+func (e Empty) Decode(any) error { return nil }
