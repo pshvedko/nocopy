@@ -33,7 +33,7 @@ func TestDecode(t *testing.T) {
 	require.NoError(t, err)
 	_, m, err := message.Decode(ctx, b, Mediator{})
 	require.NoError(t, err)
-	require.Equal(t, message.Raw{Envelope: e, RawMessage: []byte{'{', '}'}}, m)
+	require.Equal(t, message.Raw{Envelope: e, Body: []byte{'{', '}'}}, m)
 
 	b, err = json.Marshal([]any{})
 	require.NoError(t, err)
@@ -57,7 +57,7 @@ func TestDecode(t *testing.T) {
 	require.NoError(t, err)
 	ctx, m, err = message.Decode(ctx, b, Mediator{middleware})
 	require.NoError(t, err)
-	require.Equal(t, message.Raw{Envelope: e, RawMessage: []byte{'{', '}'}}, m)
+	require.Equal(t, message.Raw{Envelope: e, Body: []byte{'{', '}'}}, m)
 	require.Equal(t, ctx.Value(1), map[string]any{"a": 1.})
 }
 

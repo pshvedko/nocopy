@@ -30,11 +30,13 @@ type Address interface {
 	Return() []string
 	To() string
 	Type() Type
-	Handle() string
+	Method() string
 }
 
 type Message interface {
 	Address
+	Body
+	Decode(any) error
 }
 
 type MiddlewareFunc func(context.Context, []byte) (context.Context, error)
@@ -61,14 +63,32 @@ type Error struct {
 	Text string `json:"text,omitempty"`
 }
 
+func (e Error) Encode() ([]byte, error) {
+	return json.Marshal(e)
+}
+
 func (e Error) Error() string {
 	return e.Text
 }
 
 type Raw struct {
-	Error
-	Envelope
-	RawMessage json.RawMessage
+	Err      Error
+	Envelope Envelope
+	Body     json.RawMessage
+}
+
+func (r Raw) Decode(v any) error {
+	if r.Envelope.Type == Failure {
+		return r.Err
+	}
+	return json.Unmarshal(r.Body, v)
+}
+
+func (r Raw) Encode() ([]byte, error) {
+	if r.Envelope.Type == Failure {
+		return r.Err.Encode()
+	}
+	return r.Body.MarshalJSON()
 }
 
 func (r Raw) ID() uuid.UUID {
@@ -91,7 +111,7 @@ func (r Raw) Type() Type {
 	return r.Envelope.Type
 }
 
-func (r Raw) Handle() string {
+func (r Raw) Method() string {
 	return r.Envelope.Method
 }
 
@@ -107,7 +127,7 @@ func Decode(ctx context.Context, bytes []byte, mediator Mediator) (context.Conte
 	var uu []UnmarshalFunc
 
 	uu = append(uu, func(bytes []byte) error {
-		v = &r.Error
+		v = &r.Err
 		i++
 		err := json.Unmarshal(bytes, &r.Envelope)
 		if err != nil {
@@ -127,7 +147,7 @@ func Decode(ctx context.Context, bytes []byte, mediator Mediator) (context.Conte
 			}
 			fallthrough
 		case Reply:
-			v = &r.RawMessage
+			v = &r.Body
 			fallthrough
 		case Failure:
 			uu = append(uu,
@@ -185,12 +205,12 @@ func NewContent[T any](a T) Body {
 	}
 }
 
-func NewFailure[T any](code int, err T) error {
+func NewFailure[T any](code int, err T) Error {
 	return Error{
 		Code: code,
 		Text: fmt.Sprint(err),
 	}
 }
 
-type Handler func(context.Context, Message) (Body, error)
-type Catcher func(context.Context, Message)
+type HandleFunc func(context.Context, Message) (Body, error)
+type CatchFunc func(context.Context, Message)

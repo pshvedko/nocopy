@@ -3,10 +3,8 @@ package exchange
 import (
 	"context"
 	"fmt"
-	"sync"
-	"time"
-
 	"github.com/google/uuid"
+	"sync"
 
 	"github.com/pshvedko/nocopy/broker2/message"
 )
@@ -65,8 +63,8 @@ type Exchange struct {
 	transport Transport
 	topic     [2][]Topic
 	child     Child
-	handler   map[string]message.Handler
-	catcher   map[string]message.Catcher
+	handler   map[string]message.HandleFunc
+	catcher   map[string]message.CatchFunc
 	functor   map[string][]message.MiddlewareFunc
 	wrapper   []message.MiddlewareFunc
 }
@@ -76,22 +74,26 @@ func New(transport Transport) *Exchange {
 		transport: transport,
 		topic:     [2][]Topic{},
 		child:     Child{},
-		handler:   map[string]message.Handler{},
-		catcher:   map[string]message.Catcher{},
+		handler:   map[string]message.HandleFunc{},
+		catcher:   map[string]message.CatchFunc{},
 		functor:   map[string][]message.MiddlewareFunc{},
 		wrapper:   []message.MiddlewareFunc{},
 	}
+}
+
+func (e *Exchange) Use(wrapper message.MiddlewareFunc) {
+	e.wrapper = append(e.wrapper, wrapper)
 }
 
 func (e *Exchange) Middleware(method string) []message.MiddlewareFunc {
 	return append(e.wrapper, e.functor[method]...)
 }
 
-func (e *Exchange) Handle(method string, handler message.Handler) {
+func (e *Exchange) Handle(method string, handler message.HandleFunc) {
 	e.handler[method] = handler
 }
 
-func (e *Exchange) Catch(method string, catcher message.Catcher) {
+func (e *Exchange) Catch(method string, catcher message.CatchFunc) {
 	e.catcher[method] = catcher
 }
 
@@ -161,18 +163,32 @@ func (e *Exchange) Read(ctx context.Context, bytes []byte) {
 	e.child.Add(1)
 	e.child.Store(ctx, cancel)
 
-	go func() {
+	go e.Do(ctx, cancel, message.New(m))
+}
 
-		_ = m // _, _ = handler(ctx) // FIXME
-
-		<-ctx.Done()
-
-		<-time.After(5 * time.Second)
-
-		e.child.Delete(ctx)
-		e.child.Done()
-		cancel()
-	}()
+func (e *Exchange) Do(ctx context.Context, cancel context.CancelFunc, m message.Builder) {
+	switch m.Type() {
+	case message.Query, message.Broadcast:
+		h, ok := e.handler[m.Method()]
+		if ok {
+			r, err := h(ctx, m)
+			switch {
+			case err != nil:
+				m = m.WithError(err)
+				fallthrough
+			case r != nil:
+				_, _ = e.Send(ctx, m.WithBody(r)) // FIXME
+			}
+		}
+	case message.Failure, message.Reply:
+		c, ok := e.catcher[m.Method()]
+		if ok {
+			c(ctx, m)
+		}
+	}
+	e.child.Delete(ctx)
+	e.child.Done()
+	cancel()
 }
 
 func (e *Exchange) Finish() {
