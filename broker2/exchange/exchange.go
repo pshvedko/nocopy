@@ -81,6 +81,10 @@ func New(transport Transport) *Exchange {
 	}
 }
 
+func (e *Exchange) Get(method string) []message.Middleware {
+	return append(e.wrapper, e.functor[method]...)
+}
+
 func (e *Exchange) Use(wrapper message.Middleware) {
 	e.wrapper = append(e.wrapper, wrapper)
 }
@@ -105,7 +109,7 @@ func (e *Exchange) Request(ctx context.Context, to string, method string, body m
 
 func (e *Exchange) Send(ctx context.Context, m message.Message, options ...any) (uuid.UUID, error) {
 	id := m.ID()
-	to, bytes, err := e.transport.Encode(ctx, m, message.Mediator(nil))
+	to, bytes, err := e.transport.Encode(ctx, m, e)
 	if err != nil {
 		return uuid.UUID{}, err
 	}
@@ -154,16 +158,8 @@ func (e *Exchange) Listen(ctx context.Context, at string, to ...string) error {
 	return e.transport.Flush()
 }
 
-type Mediator struct {
-	e *Exchange
-}
-
-func (m Mediator) Get(method string) []message.Middleware {
-	return append(m.e.wrapper, m.e.functor[method]...)
-}
-
 func (e *Exchange) Read(ctx context.Context, bytes []byte) {
-	ctx, m, err := e.transport.Decode(ctx, bytes, Mediator{e: e})
+	ctx, m, err := e.transport.Decode(ctx, bytes, e)
 	if err != nil {
 		return
 	}

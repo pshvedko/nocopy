@@ -15,7 +15,7 @@ import (
 type Broker interface {
 	Handle(string, message.HandleFunc)
 	Catch(string, message.CatchFunc)
-	Use(message.FormatFunc)
+	Use(message.Middleware)
 	Message(context.Context, string, string, message.Body, ...any) (uuid.UUID, error)
 	Request(context.Context, string, string, message.Body, ...any) (uuid.UUID, message.Message, error)
 	Send(context.Context, message.Message, ...any) (uuid.UUID, error)
