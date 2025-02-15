@@ -17,12 +17,12 @@ type Subscription interface {
 type Handler func(context.Context, []byte)
 
 type Transport interface {
-	message.Decoder
+	message.Formatter
 	Flush() error
 	Subscribe(context.Context, string, Handler) (Subscription, error)
 	QueueSubscribe(context.Context, string, string, Handler) (Subscription, error)
+	Publish(ctx context.Context, to string, bytes []byte) error
 	Unsubscribe(Topic) error
-	Prefix() [2]string
 	Close()
 }
 
@@ -65,8 +65,8 @@ type Exchange struct {
 	child     Child
 	handler   map[string]message.HandleFunc
 	catcher   map[string]message.CatchFunc
-	functor   map[string][]message.MiddlewareFunc
-	wrapper   []message.MiddlewareFunc
+	functor   map[string][]message.Middleware
+	wrapper   []message.Middleware
 }
 
 func New(transport Transport) *Exchange {
@@ -76,17 +76,13 @@ func New(transport Transport) *Exchange {
 		child:     Child{},
 		handler:   map[string]message.HandleFunc{},
 		catcher:   map[string]message.CatchFunc{},
-		functor:   map[string][]message.MiddlewareFunc{},
-		wrapper:   []message.MiddlewareFunc{},
+		functor:   map[string][]message.Middleware{},
+		wrapper:   []message.Middleware{},
 	}
 }
 
-func (e *Exchange) Use(wrapper message.MiddlewareFunc) {
+func (e *Exchange) Use(wrapper message.Middleware) {
 	e.wrapper = append(e.wrapper, wrapper)
-}
-
-func (e *Exchange) Middleware(method string) []message.MiddlewareFunc {
-	return append(e.wrapper, e.functor[method]...)
 }
 
 func (e *Exchange) Handle(method string, handler message.HandleFunc) {
@@ -107,16 +103,22 @@ func (e *Exchange) Request(ctx context.Context, to string, method string, body m
 	panic("implement me")
 }
 
-func (e *Exchange) Send(ctx context.Context, message message.Message, options ...any) (uuid.UUID, error) {
-	//TODO implement me
-	panic("implement me")
+func (e *Exchange) Send(ctx context.Context, m message.Message, options ...any) (uuid.UUID, error) {
+	id := m.ID()
+	to, bytes, err := e.transport.Encode(ctx, m, message.Mediator(nil))
+	if err != nil {
+		return uuid.UUID{}, err
+	}
+	err = e.transport.Publish(ctx, to, bytes)
+	if err != nil {
+		return uuid.UUID{}, err
+	}
+	return id, nil
 }
 
-// Listen ...
 func (e *Exchange) Listen(ctx context.Context, at string, to ...string) error {
-	p := e.transport.Prefix()
-	a := fmt.Sprint(p[0], at)
-	u := fmt.Sprint(p[1], at)
+	a := fmt.Sprint("#", at)
+	u := fmt.Sprint("%", at)
 
 	for {
 		s, err := e.transport.Subscribe(ctx, a, e.Read)
@@ -152,8 +154,16 @@ func (e *Exchange) Listen(ctx context.Context, at string, to ...string) error {
 	return e.transport.Flush()
 }
 
+type Mediator struct {
+	e *Exchange
+}
+
+func (m Mediator) Get(method string) []message.Middleware {
+	return append(m.e.wrapper, m.e.functor[method]...)
+}
+
 func (e *Exchange) Read(ctx context.Context, bytes []byte) {
-	ctx, m, err := e.transport.Decode(ctx, bytes, e)
+	ctx, m, err := e.transport.Decode(ctx, bytes, Mediator{e: e})
 	if err != nil {
 		return
 	}

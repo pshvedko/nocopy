@@ -13,12 +13,13 @@ import (
 
 type Transport map[string]uint
 
-func (t Transport) Unsubscribe(u exchange.Topic) error {
-	return u.Unsubscribe()
+func (t Transport) Publish(ctx context.Context, to string, bytes []byte) error {
+	//TODO implement me
+	panic("implement me")
 }
 
-func (t Transport) Decode(ctx context.Context, bytes []byte, mediator message.Mediator) (context.Context, message.Message, error) {
-	return message.Decode(ctx, bytes, mediator)
+func (t Transport) Unsubscribe(u exchange.Topic) error {
+	return u.Unsubscribe()
 }
 
 func (t Transport) Subscribe(ctx context.Context, at string, handler exchange.Handler) (exchange.Subscription, error) {
@@ -31,10 +32,6 @@ func (t Transport) QueueSubscribe(ctx context.Context, at string, queue string, 
 	return Subscription(at), nil
 }
 
-func (t Transport) Prefix() [2]string {
-	return [2]string{"#", "%"}
-}
-
 func (t Transport) Flush() error { return nil }
 
 func (t Transport) Close() {}
@@ -45,9 +42,14 @@ func (s Subscription) Drain() error { return nil }
 
 func (s Subscription) Unsubscribe() error { return nil }
 
+type FormatTransport struct {
+	Transport
+	message.Format
+}
+
 func TestExchange_Listen(t *testing.T) {
 	transport := Transport{}
-	e := exchange.New(transport)
+	e := exchange.New(FormatTransport{Transport: transport})
 	err := e.Listen(context.TODO(), "test", "host", "id")
 	require.NoError(t, err)
 	require.Equal(t,
@@ -73,7 +75,7 @@ func TestExchange_Shutdown(t *testing.T) {
 	}
 	b, err := json.Marshal([]any{m, json.RawMessage{'{', '}'}})
 	require.NoError(t, err)
-	e := exchange.New(Transport{})
+	e := exchange.New(FormatTransport{Transport: Transport{}})
 	e.Read(ctx, b)
 	e.Shutdown()
 }

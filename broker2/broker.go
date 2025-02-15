@@ -15,7 +15,7 @@ import (
 type Broker interface {
 	Handle(string, message.HandleFunc)
 	Catch(string, message.CatchFunc)
-	Use(message.MiddlewareFunc)
+	Use(message.FormatFunc)
 	Message(context.Context, string, string, message.Body, ...any) (uuid.UUID, error)
 	Request(context.Context, string, string, message.Body, ...any) (uuid.UUID, message.Message, error)
 	Send(context.Context, message.Message, ...any) (uuid.UUID, error)
@@ -25,14 +25,14 @@ type Broker interface {
 }
 
 func New(name string) (Broker, error) {
-	t, err := NewTransport(name, message.Decode)
+	t, err := NewTransport(name, message.Format{})
 	if err != nil {
 		return nil, err
 	}
 	return exchange.New(t), nil
 }
 
-func NewTransport(name string, f message.DecodeFunc) (exchange.Transport, error) {
+func NewTransport(name string, f message.Formatter) (exchange.Transport, error) {
 	u, err := url.Parse(name)
 	if err != nil {
 		return nil, err

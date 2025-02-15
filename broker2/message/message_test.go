@@ -12,14 +12,15 @@ import (
 	"github.com/pshvedko/nocopy/broker2/message"
 )
 
-type Mediator []message.MiddlewareFunc
+type Mediator []message.Middleware
 
-func (m Mediator) Middleware(string) []message.MiddlewareFunc {
+func (m Mediator) Get(string) []message.Middleware {
 	return m
 }
 
-func TestDecode(t *testing.T) {
+func TestFormat_Decode(t *testing.T) {
 	ctx := context.TODO()
+	f := message.Format{}
 	e := message.Envelope{
 		ID:     uuid.New(),
 		From:   "any",
@@ -31,31 +32,34 @@ func TestDecode(t *testing.T) {
 
 	b, err := json.Marshal([]any{e, json.RawMessage{'{', '}'}})
 	require.NoError(t, err)
-	_, m, err := message.Decode(ctx, b, Mediator{})
+	_, m, err := f.Decode(ctx, b, Mediator{})
 	require.NoError(t, err)
 	require.Equal(t, message.Raw{Envelope: e, Body: []byte{'{', '}'}}, m)
 
 	b, err = json.Marshal([]any{})
 	require.NoError(t, err)
-	_, m, err = message.Decode(ctx, b, Mediator{})
+	_, m, err = f.Decode(ctx, b, Mediator{})
 	require.ErrorIs(t, err, message.ErrEmpty)
 	require.Nil(t, m)
 
 	b, err = json.Marshal([]any{e})
 	require.NoError(t, err)
-	_, m, err = message.Decode(ctx, b, Mediator{})
+	_, m, err = f.Decode(ctx, b, Mediator{})
 	require.ErrorIs(t, err, message.ErrNoPayload)
 	require.Nil(t, m)
 
 	b, err = json.Marshal([]any{e, json.RawMessage{'{', '}'}, json.RawMessage{'{', '}'}})
 	require.NoError(t, err)
-	_, m, err = message.Decode(ctx, b, Mediator{})
+	_, m, err = f.Decode(ctx, b, Mediator{})
 	require.ErrorIs(t, err, message.ErrRedundantMessage)
 	require.Nil(t, m)
 
 	b, err = json.Marshal([]any{e, json.RawMessage{'{', '"', 'a', '"', ':', '1', '}'}, json.RawMessage{'{', '}'}})
 	require.NoError(t, err)
-	ctx, m, err = message.Decode(ctx, b, Mediator{middleware})
+	ctx, m, err = f.Decode(ctx, b, Mediator{message.FormatFunc{
+		DecodeFunc: middleware,
+		EncodeFunc: nil,
+	}})
 	require.NoError(t, err)
 	require.Equal(t, message.Raw{Envelope: e, Body: []byte{'{', '}'}}, m)
 	require.Equal(t, ctx.Value(1), map[string]any{"a": 1.})

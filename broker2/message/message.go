@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+
 	"github.com/google/uuid"
 )
 
@@ -39,14 +40,35 @@ type Message interface {
 	Decode(any) error
 }
 
-type MiddlewareFunc func(context.Context, []byte) (context.Context, error)
+type DecodeFunc func(context.Context, []byte) (context.Context, error)
 
-type Mediator interface {
-	Middleware(string) []MiddlewareFunc
+func (f DecodeFunc) Decode(ctx context.Context, bytes []byte) (context.Context, error) {
+	return f(ctx, bytes)
 }
 
-type Decoder interface {
+type EncodeFunc func(context.Context) ([]byte, error)
+
+func (f EncodeFunc) Encode(ctx context.Context) ([]byte, error) {
+	return f(ctx)
+}
+
+type FormatFunc struct {
+	DecodeFunc
+	EncodeFunc
+}
+
+type Middleware interface {
+	Decode(ctx context.Context, bytes []byte) (context.Context, error)
+	Encode(ctx context.Context) ([]byte, error)
+}
+
+type Mediator interface {
+	Get(string) []Middleware
+}
+
+type Formatter interface {
 	Decode(context.Context, []byte, Mediator) (context.Context, Message, error)
+	Encode(context.Context, Message, Mediator) (string, []byte, error)
 }
 
 type Envelope struct {
@@ -119,7 +141,9 @@ type UnmarshalFunc func([]byte) error
 
 func (f UnmarshalFunc) UnmarshalJSON(bytes []byte) error { return f(bytes) }
 
-func Decode(ctx context.Context, bytes []byte, mediator Mediator) (context.Context, Message, error) {
+type Format struct{}
+
+func (d Format) Decode(ctx context.Context, bytes []byte, mediator Mediator) (context.Context, Message, error) {
 	var i int
 	var u int
 	var v interface{}
@@ -135,11 +159,11 @@ func Decode(ctx context.Context, bytes []byte, mediator Mediator) (context.Conte
 		}
 		switch r.Envelope.Type {
 		case Query, Broadcast:
-			for _, w := range mediator.Middleware(r.Envelope.Method) {
+			for _, w := range mediator.Get(r.Envelope.Method) {
 				uu = append(uu,
 					func(bytes []byte) (err error) {
 						i++
-						ctx, err = w(ctx, bytes)
+						ctx, err = w.Decode(ctx, bytes)
 						return
 					},
 				)
@@ -181,10 +205,9 @@ func Decode(ctx context.Context, bytes []byte, mediator Mediator) (context.Conte
 	return ctx, r, nil
 }
 
-type DecodeFunc func(context.Context, []byte, Mediator) (context.Context, Message, error)
-
-func (f DecodeFunc) Decode(ctx context.Context, bytes []byte, mediator Mediator) (context.Context, Message, error) {
-	return f(ctx, bytes, mediator)
+func (d Format) Encode(ctx context.Context, message Message, mediator Mediator) (string, []byte, error) {
+	//TODO implement me
+	panic("implement me")
 }
 
 type Body interface {
