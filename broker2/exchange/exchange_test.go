@@ -2,7 +2,6 @@ package exchange_test
 
 import (
 	"context"
-	"encoding/json"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"testing"
@@ -13,21 +12,16 @@ import (
 
 type Transport map[string]uint
 
-func (t Transport) Publish(ctx context.Context, to string, bytes []byte) error {
-	//TODO implement me
-	panic("implement me")
-}
-
 func (t Transport) Unsubscribe(u exchange.Topic) error {
 	return u.Unsubscribe()
 }
 
-func (t Transport) Subscribe(ctx context.Context, at string, handler exchange.Handler) (exchange.Subscription, error) {
+func (t Transport) Subscribe(_ context.Context, at string, _ exchange.Doer) (exchange.Subscription, error) {
 	t[at] = t[at] + 1
 	return Subscription(at), nil
 }
 
-func (t Transport) QueueSubscribe(ctx context.Context, at string, queue string, handler exchange.Handler) (exchange.Subscription, error) {
+func (t Transport) QueueSubscribe(_ context.Context, at string, _ string, _ exchange.Doer) (exchange.Subscription, error) {
 	t[at] = t[at] + 1
 	return Subscription(at), nil
 }
@@ -47,6 +41,11 @@ type FormatTransport struct {
 	message.Format
 }
 
+func (f FormatTransport) Publish(context.Context, message.Message, message.Mediator) error {
+	//TODO implement me
+	panic("implement me")
+}
+
 func TestExchange_Listen(t *testing.T) {
 	transport := Transport{}
 	e := exchange.New(FormatTransport{Transport: transport})
@@ -64,18 +63,16 @@ func TestExchange_Listen(t *testing.T) {
 }
 
 func TestExchange_Shutdown(t *testing.T) {
-	ctx := context.TODO()
-	m := message.Envelope{
-		ID:     uuid.New(),
-		From:   "any",
-		Return: []string{"path", "to", "home"},
-		To:     "me",
-		Type:   2,
-		Method: "hello",
-	}
-	b, err := json.Marshal([]any{m, json.RawMessage{'{', '}'}})
-	require.NoError(t, err)
 	e := exchange.New(FormatTransport{Transport: Transport{}})
-	e.Read(ctx, b)
+	e.Do(context.TODO(), message.Raw{
+		Envelope: message.Envelope{
+			ID:     uuid.New(),
+			From:   "any",
+			Return: []string{"path", "to", "home"},
+			To:     "me",
+			Type:   2,
+			Method: "hello",
+		},
+	})
 	e.Shutdown()
 }

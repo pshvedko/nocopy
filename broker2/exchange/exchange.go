@@ -14,14 +14,17 @@ type Subscription interface {
 	Drain() error
 }
 
-type Handler func(context.Context, []byte)
+type Doer interface {
+	Do(context.Context, message.Message)
+	message.Mediator
+}
 
 type Transport interface {
 	message.Formatter
 	Flush() error
-	Subscribe(context.Context, string, Handler) (Subscription, error)
-	QueueSubscribe(context.Context, string, string, Handler) (Subscription, error)
-	Publish(ctx context.Context, to string, bytes []byte) error
+	Subscribe(context.Context, string, Doer) (Subscription, error)
+	QueueSubscribe(context.Context, string, string, Doer) (Subscription, error)
+	Publish(context.Context, message.Message, message.Mediator) error
 	Unsubscribe(Topic) error
 	Close()
 }
@@ -107,17 +110,10 @@ func (e *Exchange) Request(ctx context.Context, to string, method string, body m
 	panic("implement me")
 }
 
-func (e *Exchange) Send(ctx context.Context, m message.Message, options ...any) (uuid.UUID, error) {
-	id := m.ID()
-	to, bytes, err := e.transport.Encode(ctx, m, e)
-	if err != nil {
-		return uuid.UUID{}, err
-	}
-	err = e.transport.Publish(ctx, to, bytes)
-	if err != nil {
-		return uuid.UUID{}, err
-	}
-	return id, nil
+func (e *Exchange) Send(ctx context.Context, m message.Message, options ...any) (id uuid.UUID, err error) {
+	id = m.ID()
+	err = e.transport.Publish(ctx, m, e)
+	return
 }
 
 func (e *Exchange) Listen(ctx context.Context, at string, to ...string) error {
@@ -125,7 +121,7 @@ func (e *Exchange) Listen(ctx context.Context, at string, to ...string) error {
 	u := fmt.Sprint("%", at)
 
 	for {
-		s, err := e.transport.Subscribe(ctx, a, e.Read)
+		s, err := e.transport.Subscribe(ctx, a, e)
 		if err != nil {
 			return err
 		}
@@ -135,7 +131,7 @@ func (e *Exchange) Listen(ctx context.Context, at string, to ...string) error {
 			Subscription: s,
 		})
 
-		s, err = e.transport.QueueSubscribe(ctx, u, at, e.Read)
+		s, err = e.transport.QueueSubscribe(ctx, u, at, e)
 		if err != nil {
 			return err
 		}
@@ -158,21 +154,16 @@ func (e *Exchange) Listen(ctx context.Context, at string, to ...string) error {
 	return e.transport.Flush()
 }
 
-func (e *Exchange) Read(ctx context.Context, bytes []byte) {
-	ctx, m, err := e.transport.Decode(ctx, bytes, e)
-	if err != nil {
-		return
-	}
-
+func (e *Exchange) Do(ctx context.Context, m message.Message) {
 	ctx, cancel := context.WithCancel(ctx)
 
 	e.child.Add(1)
 	e.child.Store(ctx, cancel)
 
-	go e.Do(ctx, cancel, message.New(m))
+	go e.Run(ctx, cancel, message.New(m))
 }
 
-func (e *Exchange) Do(ctx context.Context, cancel context.CancelFunc, m message.Builder) {
+func (e *Exchange) Run(ctx context.Context, cancel context.CancelFunc, m message.Builder) {
 	switch m.Type() {
 	case message.Query, message.Broadcast:
 		h, ok := e.handler[m.Method()]

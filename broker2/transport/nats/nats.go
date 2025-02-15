@@ -15,23 +15,35 @@ type Transport struct {
 	message.Formatter
 }
 
-func (t *Transport) Publish(ctx context.Context, to string, bytes []byte) error {
-	return t.conn.Publish(to, bytes)
-}
-
 func (t *Transport) Unsubscribe(topic exchange.Topic) error {
 	return topic.Unsubscribe()
 }
 
-func (t *Transport) Subscribe(ctx context.Context, at string, handler exchange.Handler) (exchange.Subscription, error) {
+func (t *Transport) Publish(ctx context.Context, m message.Message, w message.Mediator) error {
+	to, bytes, err := t.Encode(ctx, m, w)
+	if err != nil {
+		return err
+	}
+	return t.conn.Publish(to, bytes)
+}
+
+func (t *Transport) Subscribe(ctx context.Context, at string, r exchange.Doer) (exchange.Subscription, error) {
 	return t.conn.Subscribe(at, func(m *nats.Msg) {
-		handler(ctx, m.Data)
+		ctx2, z, err := t.Decode(ctx, m.Data, r)
+		if err != nil {
+			return
+		}
+		r.Do(ctx2, z)
 	})
 }
 
-func (t *Transport) QueueSubscribe(ctx context.Context, at string, queue string, handler exchange.Handler) (exchange.Subscription, error) {
+func (t *Transport) QueueSubscribe(ctx context.Context, at string, queue string, r exchange.Doer) (exchange.Subscription, error) {
 	return t.conn.QueueSubscribe(at, queue, func(m *nats.Msg) {
-		handler(ctx, m.Data)
+		ctx2, q, err := t.Decode(ctx, m.Data, r)
+		if err != nil {
+			return
+		}
+		r.Do(ctx2, q)
 	})
 }
 
