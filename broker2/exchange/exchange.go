@@ -16,7 +16,7 @@ type Subscription interface {
 	Drain() error
 }
 
-type Handler func(context.Context, string, []byte)
+type Handler func(context.Context, []byte)
 
 type Transport interface {
 	message.Decoder
@@ -68,16 +68,23 @@ type Exchange struct {
 	handler   map[string]message.Handler
 	catcher   map[string]message.Catcher
 	functor   map[string][]message.MiddlewareFunc
+	wrapper   []message.MiddlewareFunc
 }
 
 func New(transport Transport) *Exchange {
 	return &Exchange{
 		transport: transport,
+		topic:     [2][]Topic{},
+		child:     Child{},
+		handler:   map[string]message.Handler{},
+		catcher:   map[string]message.Catcher{},
+		functor:   map[string][]message.MiddlewareFunc{},
+		wrapper:   []message.MiddlewareFunc{},
 	}
 }
 
-func (e *Exchange) Middleware(topic string, method string) []message.MiddlewareFunc {
-	return e.functor[method]
+func (e *Exchange) Middleware(method string) []message.MiddlewareFunc {
+	return append(e.wrapper, e.functor[method]...)
 }
 
 func (e *Exchange) Handle(method string, handler message.Handler) {
@@ -143,8 +150,8 @@ func (e *Exchange) Listen(ctx context.Context, at string, to ...string) error {
 	return e.transport.Flush()
 }
 
-func (e *Exchange) Read(ctx context.Context, topic string, bytes []byte) {
-	ctx, m, err := e.transport.Decode(ctx, topic, bytes, e)
+func (e *Exchange) Read(ctx context.Context, bytes []byte) {
+	ctx, m, err := e.transport.Decode(ctx, bytes, e)
 	if err != nil {
 		return
 	}

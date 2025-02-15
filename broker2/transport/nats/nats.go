@@ -21,13 +21,13 @@ func (t *Transport) Unsubscribe(topic exchange.Topic) error {
 
 func (t *Transport) Subscribe(ctx context.Context, at string, handler exchange.Handler) (exchange.Subscription, error) {
 	return t.conn.Subscribe(at, func(m *nats.Msg) {
-		handler(ctx, m.Subject, m.Data)
+		handler(ctx, m.Data)
 	})
 }
 
 func (t *Transport) QueueSubscribe(ctx context.Context, at string, queue string, handler exchange.Handler) (exchange.Subscription, error) {
 	return t.conn.QueueSubscribe(at, queue, func(m *nats.Msg) {
-		handler(ctx, m.Subject, m.Data)
+		handler(ctx, m.Data)
 	})
 }
 

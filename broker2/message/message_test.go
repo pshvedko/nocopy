@@ -14,7 +14,7 @@ import (
 
 type Mediator []message.MiddlewareFunc
 
-func (m Mediator) Middleware(string, string) []message.MiddlewareFunc {
+func (m Mediator) Middleware(string) []message.MiddlewareFunc {
 	return m
 }
 
@@ -31,31 +31,31 @@ func TestDecode(t *testing.T) {
 
 	b, err := json.Marshal([]any{e, json.RawMessage{'{', '}'}})
 	require.NoError(t, err)
-	_, m, err := message.Decode(ctx, t.Name(), b, Mediator{})
+	_, m, err := message.Decode(ctx, b, Mediator{})
 	require.NoError(t, err)
 	require.Equal(t, message.Raw{Envelope: e, RawMessage: []byte{'{', '}'}}, m)
 
 	b, err = json.Marshal([]any{})
 	require.NoError(t, err)
-	_, m, err = message.Decode(ctx, t.Name(), b, Mediator{})
+	_, m, err = message.Decode(ctx, b, Mediator{})
 	require.ErrorIs(t, err, message.ErrEmpty)
 	require.Nil(t, m)
 
 	b, err = json.Marshal([]any{e})
 	require.NoError(t, err)
-	_, m, err = message.Decode(ctx, t.Name(), b, Mediator{})
+	_, m, err = message.Decode(ctx, b, Mediator{})
 	require.ErrorIs(t, err, message.ErrNoPayload)
 	require.Nil(t, m)
 
 	b, err = json.Marshal([]any{e, json.RawMessage{'{', '}'}, json.RawMessage{'{', '}'}})
 	require.NoError(t, err)
-	_, m, err = message.Decode(ctx, t.Name(), b, Mediator{})
+	_, m, err = message.Decode(ctx, b, Mediator{})
 	require.ErrorIs(t, err, message.ErrRedundantMessage)
 	require.Nil(t, m)
 
 	b, err = json.Marshal([]any{e, json.RawMessage{'{', '"', 'a', '"', ':', '1', '}'}, json.RawMessage{'{', '}'}})
 	require.NoError(t, err)
-	ctx, m, err = message.Decode(ctx, t.Name(), b, Mediator{middleware})
+	ctx, m, err = message.Decode(ctx, b, Mediator{middleware})
 	require.NoError(t, err)
 	require.Equal(t, message.Raw{Envelope: e, RawMessage: []byte{'{', '}'}}, m)
 	require.Equal(t, ctx.Value(1), map[string]any{"a": 1.})

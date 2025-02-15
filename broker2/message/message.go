@@ -15,12 +15,21 @@ var (
 	ErrEmpty            = errors.New("empty")
 )
 
+type Type int
+
+const (
+	Query Type = iota
+	Reply
+	Failure
+	Broadcast
+)
+
 type Address interface {
 	ID() uuid.UUID
 	From() string
 	Return() []string
 	To() string
-	Type() int
+	Type() Type
 	Handle() string
 }
 
@@ -31,11 +40,11 @@ type Message interface {
 type MiddlewareFunc func(context.Context, []byte) (context.Context, error)
 
 type Mediator interface {
-	Middleware(string, string) []MiddlewareFunc
+	Middleware(string) []MiddlewareFunc
 }
 
 type Decoder interface {
-	Decode(context.Context, string, []byte, Mediator) (context.Context, Message, error)
+	Decode(context.Context, []byte, Mediator) (context.Context, Message, error)
 }
 
 type Envelope struct {
@@ -43,7 +52,7 @@ type Envelope struct {
 	From   string    `json:"from,omitempty"`
 	Return []string  `json:"return,omitempty"`
 	To     string    `json:"to,omitempty"`
-	Type   int       `json:"type,omitempty"`
+	Type   Type      `json:"type,omitempty"`
 	Method string    `json:"method,omitempty"`
 }
 
@@ -78,7 +87,7 @@ func (r Raw) To() string {
 	return r.Envelope.To
 }
 
-func (r Raw) Type() int {
+func (r Raw) Type() Type {
 	return r.Envelope.Type
 }
 
@@ -90,7 +99,7 @@ type UnmarshalFunc func([]byte) error
 
 func (f UnmarshalFunc) UnmarshalJSON(bytes []byte) error { return f(bytes) }
 
-func Decode(ctx context.Context, topic string, bytes []byte, m Mediator) (context.Context, Message, error) {
+func Decode(ctx context.Context, bytes []byte, mediator Mediator) (context.Context, Message, error) {
 	var i int
 	var u int
 	var v interface{}
@@ -105,9 +114,8 @@ func Decode(ctx context.Context, topic string, bytes []byte, m Mediator) (contex
 			return err
 		}
 		switch r.Envelope.Type {
-		case 0:
-			// Middleware + Payload
-			for _, w := range m.Middleware(topic, r.Envelope.Method) {
+		case Query, Broadcast:
+			for _, w := range mediator.Middleware(r.Envelope.Method) {
 				uu = append(uu,
 					func(bytes []byte) (err error) {
 						i++
@@ -118,12 +126,10 @@ func Decode(ctx context.Context, topic string, bytes []byte, m Mediator) (contex
 				u++
 			}
 			fallthrough
-		case 1:
-			// Payload
+		case Reply:
 			v = &r.RawMessage
 			fallthrough
-		case 2:
-			// Error
+		case Failure:
 			uu = append(uu,
 				func(bytes []byte) error {
 					i++
@@ -155,10 +161,10 @@ func Decode(ctx context.Context, topic string, bytes []byte, m Mediator) (contex
 	return ctx, r, nil
 }
 
-type DecodeFunc func(context.Context, string, []byte, Mediator) (context.Context, Message, error)
+type DecodeFunc func(context.Context, []byte, Mediator) (context.Context, Message, error)
 
-func (f DecodeFunc) Decode(ctx context.Context, topic string, bytes []byte, mediator Mediator) (context.Context, Message, error) {
-	return f(ctx, topic, bytes, mediator)
+func (f DecodeFunc) Decode(ctx context.Context, bytes []byte, mediator Mediator) (context.Context, Message, error) {
+	return f(ctx, bytes, mediator)
 }
 
 type Body interface {

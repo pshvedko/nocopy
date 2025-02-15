@@ -17,8 +17,8 @@ func (t Transport) Unsubscribe(u exchange.Topic) error {
 	return u.Unsubscribe()
 }
 
-func (t Transport) Decode(ctx context.Context, topic string, bytes []byte, mediator message.Mediator) (context.Context, message.Message, error) {
-	return message.Decode(ctx, topic, bytes, mediator)
+func (t Transport) Decode(ctx context.Context, bytes []byte, mediator message.Mediator) (context.Context, message.Message, error) {
+	return message.Decode(ctx, bytes, mediator)
 }
 
 func (t Transport) Subscribe(ctx context.Context, at string, handler exchange.Handler) (exchange.Subscription, error) {
@@ -74,6 +74,6 @@ func TestExchange_Shutdown(t *testing.T) {
 	b, err := json.Marshal([]any{m, json.RawMessage{'{', '}'}})
 	require.NoError(t, err)
 	e := exchange.New(Transport{})
-	e.Read(ctx, "test", b)
+	e.Read(ctx, b)
 	e.Shutdown()
 }
