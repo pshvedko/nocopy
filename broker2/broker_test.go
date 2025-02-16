@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/pshvedko/nocopy/broker2/exchange"
 	"github.com/stretchr/testify/require"
+	"io"
 	"log/slog"
 	"testing"
 	"time"
@@ -35,8 +36,13 @@ func (t LogTransport) QueueSubscribe(ctx context.Context, at string, by string, 
 }
 
 func (t LogTransport) Publish(ctx context.Context, m message.Message, mediator message.Mediator) error {
-	slog.Info("SEND->", "id", m.ID(), "by", m.Method(), "at", m.From(), "to", m.To(), "type", m.Type())
-	return t.Transport.Publish(ctx, m, mediator)
+	out := slog.With("id", m.ID(), "by", m.Method(), "at", m.From(), "to", m.To(), "type", m.Type())
+	err := t.Transport.Publish(ctx, m, mediator)
+	if err != nil {
+		out = out.With("error", err)
+	}
+	out.Info("SEND->")
+	return err
 }
 
 func (t LogTransport) Unsubscribe(topic exchange.Topic) error {
@@ -53,39 +59,6 @@ type Suit struct {
 	url      string
 	ctx      context.Context
 	messages chan message.Message
-}
-
-func (s Suit) Message(ctx context.Context, m message.Message) {
-	s.messages <- m
-}
-
-func (s Suit) NewService(name string, topic ...string) (Broker, error) {
-	b, err := New(s.url)
-	if err != nil {
-		return nil, err
-	}
-	b.Handle("echo", func(ctx context.Context, m message.Message) (message.Body, error) {
-		var e Echo
-		err := m.Decode(&e)
-		if err != nil {
-			return nil, err
-		}
-		return m, nil
-	})
-	b.Handle("hello", func(ctx context.Context, m message.Message) (message.Body, error) {
-		var h Hello
-		err := m.Decode(&h)
-		if err != nil {
-			return nil, err
-		}
-		return message.NewBody(Hello{Name: "Hello, " + h.Name + "!"}), nil
-	})
-	b.Wrap(LogTransport{Transport: b.Transport()})
-	err = b.Listen(s.ctx, name, topic...)
-	if err != nil {
-		return nil, err
-	}
-	return b, nil
 }
 
 func TestExchange(t *testing.T) {
@@ -120,11 +93,58 @@ func (s Suit) TestService(t *testing.T) {
 }
 
 type Echo struct {
-	Name string
+	Text string
 }
 
-type Hello struct {
-	Name string
+type Empty struct{}
+
+func (s Suit) Message(ctx context.Context, m message.Message) {
+	s.messages <- m
+}
+
+func (s Suit) NewService(name string, topic ...string) (Broker, error) {
+	b, err := New(s.url)
+	if err != nil {
+		return nil, err
+	}
+	b.Handle("echo", func(ctx context.Context, m message.Message) (message.Body, error) {
+		var e Echo
+		err := m.Decode(&e)
+		if err != nil {
+			return nil, err
+		}
+		return m, nil
+	})
+	b.Handle("hello", func(ctx context.Context, m message.Message) (message.Body, error) {
+		var e Echo
+		err := m.Decode(&e)
+		if err != nil {
+			return nil, err
+		}
+		return message.NewBody(Echo{Text: "Hello, " + e.Text + "!"}), nil
+	})
+	b.Handle("empty", func(ctx context.Context, m message.Message) (message.Body, error) {
+		var e Echo
+		err := m.Decode(&e)
+		if err != nil {
+			return nil, err
+		}
+		return message.NewBody(Echo{Text: "How are you?"}), nil
+	})
+	b.Handle("error", func(ctx context.Context, m message.Message) (message.Body, error) {
+		var e Echo
+		err := m.Decode(&e)
+		if err != nil {
+			return nil, err
+		}
+		return nil, message.NewError(500, io.EOF)
+	})
+	b.Wrap(LogTransport{Transport: b.Transport()})
+	err = b.Listen(s.ctx, name, topic...)
+	if err != nil {
+		return nil, err
+	}
+	return b, nil
 }
 
 func (s Suit) TestRequest(t *testing.T) {
@@ -133,32 +153,54 @@ func (s Suit) TestRequest(t *testing.T) {
 	defer b.Shutdown()
 	b.Catch("echo", s.Message)
 	b.Catch("hello", s.Message)
+	b.Catch("empty", s.Message)
+	b.Catch("error", s.Message)
 	err = b.Listen(s.ctx, "client", "zero", "zero")
 	require.NoError(t, err)
 	defer b.Finish()
 
-	var echo Echo
+	var e Echo
 	_, err = b.Send(s.ctx, message.New().
 		WithTo("service").
 		WithFrom("client").
 		WithMethod("echo").
-		WithBody(message.NewBody(Echo{Name: "Alice"})))
+		WithBody(message.NewBody(Echo{Text: "Alice"})))
 	require.NoError(t, err)
 	m := <-s.messages
-	err = m.Decode(&echo)
+	err = m.Decode(&e)
 	require.NoError(t, err)
-	require.Equal(t, Echo{Name: "Alice"}, echo)
+	require.Equal(t, Echo{Text: "Alice"}, e)
 
-	var hello Hello
 	_, err = b.Send(s.ctx, message.New().
 		WithTo("service").
 		WithFrom("client").
 		WithMethod("hello").
-		WithBody(message.NewBody(Hello{Name: "Alice"})))
+		WithBody(message.NewBody(Echo{Text: "Alice"})))
 	require.NoError(t, err)
 	m = <-s.messages
-	err = m.Decode(&hello)
+	err = m.Decode(&e)
 	require.NoError(t, err)
-	require.Equal(t, Hello{Name: "Hello, Alice!"}, hello)
+	require.Equal(t, Echo{Text: "Hello, Alice!"}, e)
+
+	_, err = b.Send(s.ctx, message.New().
+		WithTo("service").
+		WithFrom("client").
+		WithMethod("empty").
+		WithBody(message.NewBody(Empty{})))
+	require.NoError(t, err)
+	m = <-s.messages
+	err = m.Decode(&e)
+	require.NoError(t, err)
+	require.Equal(t, Echo{Text: "How are you?"}, e)
+
+	_, err = b.Send(s.ctx, message.New().
+		WithTo("service").
+		WithFrom("client").
+		WithMethod("error").
+		WithBody(message.NewBody(Empty{})))
+	require.NoError(t, err)
+	m = <-s.messages
+	err = m.Decode(&e)
+	require.EqualError(t, err, io.EOF.Error())
 
 }

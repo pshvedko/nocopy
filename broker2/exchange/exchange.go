@@ -121,7 +121,10 @@ func (e *Exchange) Request(ctx context.Context, to string, method string, body m
 	panic("implement me")
 }
 
-func (e *Exchange) Send(ctx context.Context, m message.Message, options ...any) (id uuid.UUID, err error) {
+func (e *Exchange) Send(ctx context.Context, m message.Message, options ...any) (uuid.UUID, error) {
+	if ctx.Value(message.Broadcast) != nil && m.Type()&message.Answer == message.Answer {
+		return uuid.UUID{}, nil
+	}
 	return m.ID(), e.transport.Publish(ctx, m, e)
 }
 
@@ -171,7 +174,7 @@ func (e *Exchange) Do(ctx context.Context, m message.Message) {
 
 func (e *Exchange) Run(ctx context.Context, cancel context.CancelFunc, m message.Builder) {
 	switch m.Type() {
-	case message.Query, message.Broadcast:
+	case message.Query, message.Synchro, message.Broadcast:
 		h, ok := e.handler[m.Method()]
 		if ok {
 			r, err := h(ctx, m)
@@ -180,9 +183,7 @@ func (e *Exchange) Run(ctx context.Context, cancel context.CancelFunc, m message
 				m = m.WithError(err)
 				fallthrough
 			case r != nil:
-				if m.Type() == message.Query {
-					_, _ = e.Send(ctx, m.Answer().WithBody(r)) // FIXME
-				}
+				_, _ = e.Send(ctx, m.Answer().WithBody(r)) // FIXME
 			}
 		}
 	case message.Failure, message.Answer:
