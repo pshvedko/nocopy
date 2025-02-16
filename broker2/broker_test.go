@@ -2,14 +2,15 @@ package exchange
 
 import (
 	"context"
-	"github.com/pshvedko/nocopy/broker2/exchange"
-	"github.com/stretchr/testify/require"
 	"log/slog"
 	"os"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
+	"github.com/pshvedko/nocopy/broker2/exchange"
 	"github.com/pshvedko/nocopy/broker2/message"
 )
 
