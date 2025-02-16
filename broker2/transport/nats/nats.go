@@ -24,13 +24,13 @@ func (t *Transport) Publish(ctx context.Context, m message.Message, w message.Me
 		return err
 	}
 	if m.Type() == message.Broadcast {
-		return t.conn.Publish("#"+m.To(), bytes)
+		return t.conn.Publish("%"+m.To(), bytes)
 	}
-	return t.conn.Publish("%"+m.To(), bytes)
+	return t.conn.Publish("@"+m.To(), bytes)
 }
 
 func (t *Transport) Subscribe(ctx context.Context, at string, w message.Mediator, r exchange.Doer) (exchange.Subscription, error) {
-	return t.conn.Subscribe("#"+at, func(m *nats.Msg) {
+	return t.conn.Subscribe("%"+at, func(m *nats.Msg) {
 		ctx2, z, err := message.Decode(ctx, m.Data, w)
 		if err != nil {
 			return
@@ -40,7 +40,7 @@ func (t *Transport) Subscribe(ctx context.Context, at string, w message.Mediator
 }
 
 func (t *Transport) QueueSubscribe(ctx context.Context, at string, queue string, w message.Mediator, r exchange.Doer) (exchange.Subscription, error) {
-	return t.conn.QueueSubscribe("%"+at, queue, func(m *nats.Msg) {
+	return t.conn.QueueSubscribe("@"+at, queue, func(m *nats.Msg) {
 		ctx2, z, err := message.Decode(ctx, m.Data, w)
 		if err != nil {
 			return

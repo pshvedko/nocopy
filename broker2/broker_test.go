@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"log/slog"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -16,18 +17,18 @@ type LogTransport struct {
 	exchange.Transport
 }
 
-func (t LogTransport) Subscribe(ctx context.Context, at string, mediator message.Mediator, doer exchange.Doer) (exchange.Subscription, error) {
-	slog.Info("LISTEN", "at", at, "wide", true)
-	return t.Transport.Subscribe(ctx, at, mediator, doer)
-}
-
 type LogInput struct {
 	exchange.Doer
 }
 
-func (l LogInput) Do(ctx context.Context, m message.Message) {
+func (i LogInput) Do(ctx context.Context, m message.Message) {
 	slog.Info("<-READ", "id", m.ID(), "by", m.Method(), "at", m.To(), "from", m.From(), "type", m.Type())
-	l.Doer.Do(ctx, m)
+	i.Doer.Do(ctx, m)
+}
+
+func (t LogTransport) Subscribe(ctx context.Context, at string, mediator message.Mediator, doer exchange.Doer) (exchange.Subscription, error) {
+	slog.Info("LISTEN", "at", at, "wide", true)
+	return t.Transport.Subscribe(ctx, at, mediator, LogInput{Doer: doer})
 }
 
 func (t LogTransport) QueueSubscribe(ctx context.Context, at string, by string, mediator message.Mediator, doer exchange.Doer) (exchange.Subscription, error) {
@@ -59,6 +60,7 @@ type Suit struct {
 	url      string
 	ctx      context.Context
 	messages chan message.Message
+	group    sync.WaitGroup
 }
 
 func TestExchange(t *testing.T) {
@@ -72,7 +74,7 @@ func TestExchange(t *testing.T) {
 	t.Run("Service", s.TestService)
 }
 
-func (s Suit) TestService(t *testing.T) {
+func (s *Suit) TestService(t *testing.T) {
 	var bb []Broker
 
 	for i, at := range [][]string{
@@ -101,11 +103,11 @@ type Empty struct {
 	Number int
 }
 
-func (s Suit) Message(ctx context.Context, m message.Message) {
+func (s *Suit) Message(ctx context.Context, m message.Message) {
 	s.messages <- m
 }
 
-func (s Suit) NewService(i int, name string, topic ...string) (Broker, error) {
+func (s *Suit) NewService(i int, name string, topic ...string) (Broker, error) {
 	b, err := New(s.url)
 	if err != nil {
 		return nil, err
@@ -148,6 +150,9 @@ func (s Suit) NewService(i int, name string, topic ...string) (Broker, error) {
 		}
 	})
 	b.Handle("number", func(ctx context.Context, m message.Message) (message.Body, error) {
+		if m.Type() == message.Broadcast {
+			defer s.group.Done()
+		}
 		var e Empty
 		err := m.Decode(&e)
 		if err != nil {
@@ -163,7 +168,7 @@ func (s Suit) NewService(i int, name string, topic ...string) (Broker, error) {
 	return b, nil
 }
 
-func (s Suit) TestSend(t *testing.T) {
+func (s *Suit) TestSend(t *testing.T) {
 	b, err := New(s.url)
 	require.NoError(t, err)
 	defer b.Shutdown()
@@ -249,4 +254,15 @@ func (s Suit) TestSend(t *testing.T) {
 	err = m.Decode(&n)
 	require.NoError(t, err)
 	require.Equal(t, 3, n.Number)
+
+	s.group.Add(2)
+	_, err = b.Send(s.ctx, message.New().
+		WithTo("service.two").
+		WithFrom("client").
+		WithMethod("number").
+		Every().
+		WithBody(message.NewBody(Empty{Number: 7})))
+	require.NoError(t, err)
+	s.group.Wait()
+
 }

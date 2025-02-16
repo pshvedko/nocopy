@@ -15,34 +15,58 @@ type Builder interface {
 	WithReturn(...string) Builder
 	WithError(error) Builder
 	WithBody(any) Builder
-	Answer() Builder
+	WithType(Type) Message // DEPRECATED:
+	Reply() Builder
+	Every() Builder
 }
 
 type Wrapper struct {
 	Message
 }
 
-type WrapperAnswer struct {
+type WrapperEvery struct {
 	Message
 }
 
-func (w WrapperAnswer) From() string {
+func (w WrapperEvery) Type() Type {
+	return Broadcast
+}
+
+func (w Wrapper) Every() Builder {
+	return Wrapper{Message: WrapperEvery{Message: w}}
+}
+
+type WrapperReply struct {
+	Message
+}
+
+func (w WrapperReply) From() string {
 	return w.Message.To()
 }
 
-func (w WrapperAnswer) To() string {
+func (w WrapperReply) To() string {
 	return w.Message.From()
 }
 
-func (w WrapperAnswer) Type() Type {
-	if w.Message.Type() == Failure {
-		return Failure
-	}
-	return Answer
+func (w WrapperReply) Type() Type {
+	return w.Message.Type()&Failure | Answer
 }
 
-func (w Wrapper) Answer() Builder {
-	return Wrapper{Message: WrapperAnswer{Message: w}}
+func (w Wrapper) Reply() Builder {
+	return Wrapper{Message: WrapperReply{Message: w}}
+}
+
+type WrapperWithType struct {
+	Message
+	t Type
+}
+
+func (w WrapperWithType) Type() Type {
+	return w.Type()
+}
+
+func (w Wrapper) WithType(t Type) Message {
+	return Wrapper{Message: WrapperWithType{Message: w, t: t}}
 }
 
 type WrapperWithID struct {
