@@ -183,7 +183,7 @@ func (e *Exchange) Run(ctx context.Context, cancel context.CancelFunc, m message
 				m = m.WithError(err)
 				fallthrough
 			case r != nil:
-				_, _ = e.Send(ctx, m.Reply().WithBody(r)) // FIXME
+				_, _ = e.Send(ctx, m.Reply().WithBody(r))
 			}
 		}
 	case message.Failure, message.Answer:

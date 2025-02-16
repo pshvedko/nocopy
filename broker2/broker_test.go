@@ -2,6 +2,7 @@ package exchange
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"sync"
@@ -16,25 +17,27 @@ import (
 
 type LogTransport struct {
 	exchange.Transport
+	N string
 }
 
 type LogInput struct {
 	exchange.Doer
+	N string
 }
 
 func (i LogInput) Do(ctx context.Context, m message.Message) {
-	slog.Info("<-READ", "id", m.ID(), "by", m.Method(), "at", m.To(), "from", m.From(), "type", m.Type())
+	slog.Info(i.N+" <-READ", "id", m.ID(), "by", m.Method(), "at", m.To(), "from", m.From(), "type", m.Type())
 	i.Doer.Do(ctx, m)
 }
 
 func (t LogTransport) Subscribe(ctx context.Context, at string, mediator message.Mediator, doer exchange.Doer) (exchange.Subscription, error) {
-	slog.Info("LISTEN", "at", at, "wide", true)
-	return t.Transport.Subscribe(ctx, at, mediator, LogInput{Doer: doer})
+	slog.Info(t.N+" LISTEN", "at", at, "wide", true)
+	return t.Transport.Subscribe(ctx, at, mediator, LogInput{Doer: doer, N: t.N})
 }
 
 func (t LogTransport) QueueSubscribe(ctx context.Context, at string, by string, mediator message.Mediator, doer exchange.Doer) (exchange.Subscription, error) {
-	slog.Info("LISTEN", "at", at)
-	return t.Transport.QueueSubscribe(ctx, at, by, mediator, LogInput{Doer: doer})
+	slog.Info(t.N+" LISTEN", "at", at)
+	return t.Transport.QueueSubscribe(ctx, at, by, mediator, LogInput{Doer: doer, N: t.N})
 }
 
 func (t LogTransport) Publish(ctx context.Context, m message.Message, mediator message.Mediator) error {
@@ -43,16 +46,16 @@ func (t LogTransport) Publish(ctx context.Context, m message.Message, mediator m
 	if err != nil {
 		out = out.With("error", err)
 	}
-	out.Info("SEND->")
+	out.Info(t.N + " SEND->")
 	return err
 }
 
 func (t LogTransport) Unsubscribe(topic exchange.Topic) error {
 	switch topic.Wide() {
 	case true:
-		slog.Info("FINISH", "at", topic, "wide", topic.Wide())
+		slog.Info(t.N+" FINISH", "at", topic, "wide", topic.Wide())
 	default:
-		slog.Info("FINISH", "at", topic)
+		slog.Info(t.N+" FINISH", "at", topic)
 	}
 	return t.Transport.Unsubscribe(topic)
 }
@@ -161,7 +164,7 @@ func (s *Suit) NewService(i int, name string, topic ...string) (Broker, error) {
 		}
 		return message.NewBody(Empty{Number: i}), nil
 	})
-	b.Wrap(LogTransport{Transport: b.Transport()})
+	b.Wrap(LogTransport{Transport: b.Transport(), N: fmt.Sprint(i)})
 	err = b.Listen(s.ctx, name, topic...)
 	if err != nil {
 		return nil, err
