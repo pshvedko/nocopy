@@ -261,9 +261,11 @@ func NewError[T any](code int, err T) Error {
 type HandleFunc func(context.Context, Message) (Body, error)
 type CatchFunc func(context.Context, Message)
 
-type Empty struct{}
+type Empty struct {
+	id uuid.UUID
+}
 
-func (e Empty) ID() uuid.UUID { return uuid.UUID{} }
+func (e Empty) ID() uuid.UUID { return e.id }
 
 func (e Empty) From() string { return "" }
 

@@ -2,6 +2,7 @@ package message
 
 import (
 	"encoding/json"
+
 	"github.com/google/uuid"
 )
 
@@ -169,8 +170,14 @@ func (w Wrapper) WithError(err error) Builder {
 	}
 }
 
-func New(m Message) Builder {
+func NewWithMessage(m Message) Builder {
 	return Wrapper{
 		Message: m,
+	}
+}
+
+func New() Builder {
+	return Wrapper{
+		Message: Empty{id: uuid.New()},
 	}
 }

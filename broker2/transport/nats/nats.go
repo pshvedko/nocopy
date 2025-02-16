@@ -23,6 +23,9 @@ func (t *Transport) Publish(ctx context.Context, m message.Message, w message.Me
 	if err != nil {
 		return err
 	}
+	if m.Type() == message.Broadcast {
+		return t.conn.Publish("#"+m.To(), bytes)
+	}
 	return t.conn.Publish("%"+m.To(), bytes)
 }
 

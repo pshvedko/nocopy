@@ -22,6 +22,8 @@ type Broker interface {
 	Listen(context.Context, string, ...string) error
 	Finish()
 	Shutdown()
+	Transport() exchange.Transport
+	Wrap(exchange.Transport)
 }
 
 func New(name string) (Broker, error) {

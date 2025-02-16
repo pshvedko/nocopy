@@ -29,11 +29,16 @@ type Transport interface {
 
 type Topic struct {
 	subject string
+	wide    bool
 	Subscription
 }
 
 func (t Topic) String() string {
 	return t.subject
+}
+
+func (t Topic) Wide() bool {
+	return t.wide
 }
 
 type Map[K comparable, V any] struct {
@@ -68,6 +73,14 @@ type Exchange struct {
 	catcher   map[string]message.CatchFunc
 	functor   map[string][]message.Middleware
 	wrapper   []message.Middleware
+}
+
+func (e *Exchange) Wrap(transport Transport) {
+	e.transport = transport
+}
+
+func (e *Exchange) Transport() Transport {
+	return e.transport
 }
 
 func New(transport Transport) *Exchange {
@@ -109,33 +122,19 @@ func (e *Exchange) Request(ctx context.Context, to string, method string, body m
 }
 
 func (e *Exchange) Send(ctx context.Context, m message.Message, options ...any) (id uuid.UUID, err error) {
-	id = m.ID()
-	err = e.transport.Publish(ctx, m, e)
-	return
+	return m.ID(), e.transport.Publish(ctx, m, e)
 }
 
-func (e *Exchange) Listen(ctx context.Context, at string, to ...string) error {
-	a := at
-	u := at
-
+func (e *Exchange) Listen(ctx context.Context, on string, to ...string) error {
+	at := on
 	for {
-		s, err := e.transport.Subscribe(ctx, a, e, e)
+		s, err := e.transport.QueueSubscribe(ctx, at, on, e, e)
 		if err != nil {
 			return err
 		}
 
 		e.topic[0] = append(e.topic[0], Topic{
-			subject:      a,
-			Subscription: s,
-		})
-
-		s, err = e.transport.QueueSubscribe(ctx, u, at, e, e)
-		if err != nil {
-			return err
-		}
-
-		e.topic[1] = append(e.topic[1], Topic{
-			subject:      u,
+			subject:      at,
 			Subscription: s,
 		})
 
@@ -143,9 +142,18 @@ func (e *Exchange) Listen(ctx context.Context, at string, to ...string) error {
 			break
 		}
 
-		a = fmt.Sprint(a, ".", to[0])
-		u = fmt.Sprint(u, ".", to[0])
+		s, err = e.transport.Subscribe(ctx, at, e, e)
+		if err != nil {
+			return err
+		}
 
+		e.topic[1] = append(e.topic[1], Topic{
+			subject:      at,
+			wide:         true,
+			Subscription: s,
+		})
+
+		at = fmt.Sprint(at, ".", to[0])
 		to = to[1:]
 	}
 
@@ -158,7 +166,7 @@ func (e *Exchange) Do(ctx context.Context, m message.Message) {
 	e.child.Add(1)
 	e.child.Store(ctx, cancel)
 
-	go e.Run(ctx, cancel, message.New(m))
+	go e.Run(ctx, cancel, message.NewWithMessage(m))
 }
 
 func (e *Exchange) Run(ctx context.Context, cancel context.CancelFunc, m message.Builder) {
