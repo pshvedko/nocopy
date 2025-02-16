@@ -137,7 +137,7 @@ func (s Suit) NewService(name string, topic ...string) (Broker, error) {
 		if err != nil {
 			return nil, err
 		}
-		return nil, message.NewError(500, io.EOF)
+		return nil, io.EOF
 	})
 	b.Wrap(LogTransport{Transport: b.Transport()})
 	err = b.Listen(s.ctx, name, topic...)
@@ -201,6 +201,10 @@ func (s Suit) TestRequest(t *testing.T) {
 	require.NoError(t, err)
 	m = <-s.messages
 	err = m.Decode(&e)
-	require.EqualError(t, err, io.EOF.Error())
+	require.Error(t, err)
+	require.ErrorIs(t, err, message.Error{
+		Code: 500,
+		Text: "EOF",
+	})
 
 }
