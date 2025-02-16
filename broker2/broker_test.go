@@ -193,7 +193,7 @@ func (s Suit) TestRequest(t *testing.T) {
 		WithTo("service").
 		WithFrom("client").
 		WithMethod("empty").
-		WithBody(message.NewBody(Empty{})))
+		WithBody(nil))
 	require.NoError(t, err)
 	m = <-s.messages
 	err = m.Decode(&e)

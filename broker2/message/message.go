@@ -278,6 +278,6 @@ func (e Empty) Type() Type { return 0 }
 
 func (e Empty) Method() string { return "" }
 
-func (e Empty) Encode() ([]byte, error) { return nil, nil }
+func (e Empty) Encode() ([]byte, error) { return []byte{'n', 'u', 'l', 'l'}, nil }
 
 func (e Empty) Decode(any) error { return nil }
