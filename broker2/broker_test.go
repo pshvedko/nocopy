@@ -4,8 +4,8 @@ import (
 	"context"
 	"github.com/pshvedko/nocopy/broker2/exchange"
 	"github.com/stretchr/testify/require"
-	"io"
 	"log/slog"
+	"os"
 	"testing"
 	"time"
 
@@ -96,7 +96,9 @@ type Echo struct {
 	Text string
 }
 
-type Empty struct{}
+type Empty struct {
+	Number int
+}
 
 func (s Suit) Message(ctx context.Context, m message.Message) {
 	s.messages <- m
@@ -124,7 +126,7 @@ func (s Suit) NewService(name string, topic ...string) (Broker, error) {
 		return message.NewBody(Echo{Text: "Hello, " + e.Text + "!"}), nil
 	})
 	b.Handle("empty", func(ctx context.Context, m message.Message) (message.Body, error) {
-		var e Echo
+		var e Empty
 		err := m.Decode(&e)
 		if err != nil {
 			return nil, err
@@ -132,12 +134,17 @@ func (s Suit) NewService(name string, topic ...string) (Broker, error) {
 		return message.NewBody(Echo{Text: "How are you?"}), nil
 	})
 	b.Handle("error", func(ctx context.Context, m message.Message) (message.Body, error) {
-		var e Echo
+		var e Empty
 		err := m.Decode(&e)
 		if err != nil {
 			return nil, err
 		}
-		return nil, io.EOF
+		switch e.Number {
+		case 1:
+			return nil, message.NewError(400, os.ErrInvalid)
+		default:
+			return nil, os.ErrClosed
+		}
 	})
 	b.Wrap(LogTransport{Transport: b.Transport()})
 	err = b.Listen(s.ctx, name, topic...)
@@ -204,7 +211,21 @@ func (s Suit) TestRequest(t *testing.T) {
 	require.Error(t, err)
 	require.ErrorIs(t, err, message.Error{
 		Code: 500,
-		Text: "EOF",
+		Text: os.ErrClosed.Error(),
+	})
+
+	_, err = b.Send(s.ctx, message.New().
+		WithTo("service").
+		WithFrom("client").
+		WithMethod("error").
+		WithBody(message.NewBody(Empty{Number: 1})))
+	require.NoError(t, err)
+	m = <-s.messages
+	err = m.Decode(&e)
+	require.Error(t, err)
+	require.ErrorIs(t, err, message.Error{
+		Code: 400,
+		Text: os.ErrInvalid.Error(),
 	})
 
 }
