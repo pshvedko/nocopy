@@ -75,17 +75,18 @@ func TestExchange(t *testing.T) {
 func (s Suit) TestService(t *testing.T) {
 	var bb []Broker
 
-	for _, at := range [][]string{
+	for i, at := range [][]string{
 		{"service", "one", "one"},
 		{"service", "one", "two"},
 		{"service", "two", "one"},
+		{"service", "two", "two"},
 	} {
-		b, err := s.NewService(at[0], at[1:]...)
+		b, err := s.NewService(i, at[0], at[1:]...)
 		require.NoError(t, err)
 		bb = append(bb, b)
 	}
 
-	t.Run("Request", s.TestRequest)
+	t.Run("Send", s.TestSend)
 
 	for _, b := range bb {
 		b.Shutdown()
@@ -104,7 +105,7 @@ func (s Suit) Message(ctx context.Context, m message.Message) {
 	s.messages <- m
 }
 
-func (s Suit) NewService(name string, topic ...string) (Broker, error) {
+func (s Suit) NewService(i int, name string, topic ...string) (Broker, error) {
 	b, err := New(s.url)
 	if err != nil {
 		return nil, err
@@ -146,6 +147,14 @@ func (s Suit) NewService(name string, topic ...string) (Broker, error) {
 			return nil, os.ErrClosed
 		}
 	})
+	b.Handle("number", func(ctx context.Context, m message.Message) (message.Body, error) {
+		var e Empty
+		err := m.Decode(&e)
+		if err != nil {
+			return nil, err
+		}
+		return message.NewBody(Empty{Number: i}), nil
+	})
 	b.Wrap(LogTransport{Transport: b.Transport()})
 	err = b.Listen(s.ctx, name, topic...)
 	if err != nil {
@@ -154,7 +163,7 @@ func (s Suit) NewService(name string, topic ...string) (Broker, error) {
 	return b, nil
 }
 
-func (s Suit) TestRequest(t *testing.T) {
+func (s Suit) TestSend(t *testing.T) {
 	b, err := New(s.url)
 	require.NoError(t, err)
 	defer b.Shutdown()
@@ -162,6 +171,7 @@ func (s Suit) TestRequest(t *testing.T) {
 	b.Catch("hello", s.Message)
 	b.Catch("empty", s.Message)
 	b.Catch("error", s.Message)
+	b.Catch("number", s.Message)
 	err = b.Listen(s.ctx, "client", "zero", "zero")
 	require.NoError(t, err)
 	defer b.Finish()
@@ -228,4 +238,15 @@ func (s Suit) TestRequest(t *testing.T) {
 		Text: os.ErrInvalid.Error(),
 	})
 
+	var n Empty
+	_, err = b.Send(s.ctx, message.New().
+		WithTo("service.two.two").
+		WithFrom("client").
+		WithMethod("number").
+		WithBody(message.NewBody(Empty{Number: 1})))
+	require.NoError(t, err)
+	m = <-s.messages
+	err = m.Decode(&n)
+	require.NoError(t, err)
+	require.Equal(t, 3, n.Number)
 }
