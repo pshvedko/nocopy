@@ -65,14 +65,36 @@ type Child struct {
 	Map[context.Context, context.CancelFunc]
 }
 
+type Config struct {
+	MaxRequestTopic bool
+	MaxRespondTopic bool
+}
+
 type Exchange struct {
 	transport Transport
+	config    Config
 	topic     [2][]Topic
 	child     Child
 	handler   map[string]message.HandleFunc
 	catcher   map[string]message.CatchFunc
 	functor   map[string][]message.Middleware
 	wrapper   []message.Middleware
+}
+
+func (e *Exchange) MaxRequestTopic(enabled bool) {
+	e.config.MaxRequestTopic = enabled
+}
+
+func (e *Exchange) MaxRespondTopic(enabled bool) {
+	e.config.MaxRespondTopic = enabled
+}
+
+func (e *Exchange) Topic(i int) (int, string) {
+	n := len(e.topic[0]) - 1
+	if i < 0 || i > n {
+		i = n
+	}
+	return n, e.topic[0][i].subject
 }
 
 func (e *Exchange) Wrap(transport Transport) {
@@ -86,12 +108,9 @@ func (e *Exchange) Transport() Transport {
 func New(transport Transport) *Exchange {
 	return &Exchange{
 		transport: transport,
-		topic:     [2][]Topic{},
-		child:     Child{},
 		handler:   map[string]message.HandleFunc{},
 		catcher:   map[string]message.CatchFunc{},
 		functor:   map[string][]message.Middleware{},
-		wrapper:   []message.Middleware{},
 	}
 }
 
@@ -111,21 +130,29 @@ func (e *Exchange) Catch(method string, catcher message.CatchFunc) {
 	e.catcher[method] = catcher
 }
 
-func (e *Exchange) Message(ctx context.Context, to string, method string, body message.Body, options ...any) (uuid.UUID, error) {
+func (e *Exchange) Message(ctx context.Context, to string, method string, body message.Body, options ...Option) (uuid.UUID, error) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (e *Exchange) Request(ctx context.Context, to string, method string, body message.Body, options ...any) (uuid.UUID, message.Message, error) {
+func (e *Exchange) Request(ctx context.Context, to string, method string, body message.Body, options ...Option) (uuid.UUID, message.Message, error) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (e *Exchange) Send(ctx context.Context, m message.Message, options ...any) (uuid.UUID, error) {
+func (e *Exchange) Answer(ctx context.Context, m message.Message, body message.Body, options ...Option) (uuid.UUID, error) {
+	b := message.NewMessage(m).Answer().WithBody(body)
+	if e.config.MaxRespondTopic {
+		options = append(options, WithMaxFrom())
+	}
+	return e.Send(ctx, b.Build(), options...)
+}
+
+func (e *Exchange) Send(ctx context.Context, m message.Message, options ...Option) (uuid.UUID, error) {
 	if ctx.Value(message.Broadcast) != nil && m.Type()&message.Answer == message.Answer {
 		return uuid.UUID{}, nil
 	}
-	return m.ID(), e.transport.Publish(ctx, m, e)
+	return m.ID(), e.transport.Publish(ctx, e.Apply(m, options...), e)
 }
 
 func (e *Exchange) Listen(ctx context.Context, on string, to ...string) error {
@@ -169,27 +196,28 @@ func (e *Exchange) Do(ctx context.Context, m message.Message) {
 	e.child.Add(1)
 	e.child.Store(ctx, cancel)
 
-	go e.Run(ctx, cancel, message.NewWithMessage(m))
+	go e.Run(ctx, cancel, m)
 }
 
-func (e *Exchange) Run(ctx context.Context, cancel context.CancelFunc, m message.Builder) {
-	switch m.Type() {
+func (e *Exchange) Run(ctx context.Context, cancel context.CancelFunc, m message.Message) {
+	b := message.NewMessage(m)
+	switch b.Type() {
 	case message.Query, message.Synchro, message.Broadcast:
-		h, ok := e.handler[m.Method()]
+		h, ok := e.handler[b.Method()]
 		if ok {
-			r, err := h(ctx, m)
+			r, err := h(ctx, b)
 			switch {
 			case err != nil:
-				m = m.WithError(err)
+				b = b.WithError(err)
 				fallthrough
 			case r != nil:
-				_, _ = e.Send(ctx, m.Reply().WithBody(r))
+				_, _ = e.Answer(ctx, b.Build(), r)
 			}
 		}
 	case message.Failure, message.Answer:
-		c, ok := e.catcher[m.Method()]
+		c, ok := e.catcher[b.Method()]
 		if ok {
-			c(ctx, m)
+			c(ctx, b.Build())
 		}
 	}
 	e.child.Delete(ctx)

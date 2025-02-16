@@ -15,45 +15,58 @@ type Builder interface {
 	WithReturn(...string) Builder
 	WithError(error) Builder
 	WithBody(any) Builder
-	WithType(Type) Message // DEPRECATED:
-	Reply() Builder
-	Every() Builder
+	Answer() Builder
+	Forward(string) Builder
+	Build() Message
 }
 
 type Wrapper struct {
 	Message
 }
 
-type WrapperEvery struct {
+func (w Wrapper) Build() Message {
+	return w.Message
+}
+
+type WrapperForward struct {
 	Message
+	to string
 }
 
-func (w WrapperEvery) Type() Type {
-	return Broadcast
-}
-
-func (w Wrapper) Every() Builder {
-	return Wrapper{Message: WrapperEvery{Message: w}}
-}
-
-type WrapperReply struct {
-	Message
-}
-
-func (w WrapperReply) From() string {
+func (w WrapperForward) From() string {
 	return w.Message.To()
 }
 
-func (w WrapperReply) To() string {
+func (w WrapperForward) Return() []string {
+	return append(w.Message.Return(), w.Message.From())
+}
+
+func (w WrapperForward) To() string {
+	return w.to
+}
+
+func (w Wrapper) Forward(to string) Builder {
+	return Wrapper{Message: WrapperForward{Message: w, to: to}}
+}
+
+type WrapperAnswer struct {
+	Message
+}
+
+func (w WrapperAnswer) From() string {
+	return w.Message.To()
+}
+
+func (w WrapperAnswer) To() string {
 	return w.Message.From()
 }
 
-func (w WrapperReply) Type() Type {
+func (w WrapperAnswer) Type() Type {
 	return w.Message.Type()&Failure | Answer
 }
 
-func (w Wrapper) Reply() Builder {
-	return Wrapper{Message: WrapperReply{Message: w}}
+func (w Wrapper) Answer() Builder {
+	return Wrapper{Message: WrapperAnswer{Message: w}}
 }
 
 type WrapperWithType struct {
@@ -62,10 +75,10 @@ type WrapperWithType struct {
 }
 
 func (w WrapperWithType) Type() Type {
-	return w.Type()
+	return w.t
 }
 
-func (w Wrapper) WithType(t Type) Message {
+func (w Wrapper) WithType(t Type) Builder {
 	return Wrapper{Message: WrapperWithType{Message: w, t: t}}
 }
 
@@ -179,10 +192,6 @@ func (w WrapperWithError) Decode(any) error {
 	return w.err
 }
 
-func (w WrapperWithError) Error() Error {
-	return w.err
-}
-
 func (w Wrapper) WithError(err error) Builder {
 	switch err := err.(type) {
 	case nil:
@@ -194,13 +203,18 @@ func (w Wrapper) WithError(err error) Builder {
 	}
 }
 
-func NewWithMessage(m Message) Builder {
+func NewMessage(m Message) Builder {
 	return Wrapper{
 		Message: m,
 	}
 }
 
-func New() Builder {
+type BuilderWithType interface {
+	Builder
+	WithType(Type) Builder
+}
+
+func New() BuilderWithType {
 	return Wrapper{
 		Message: Empty{id: uuid.New()},
 	}

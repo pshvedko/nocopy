@@ -138,7 +138,8 @@ func (s *Suit) NewService(i int, name string, topic ...string) (Broker, error) {
 		if err != nil {
 			return nil, err
 		}
-		return message.NewBody(Echo{Text: "How are you?"}), nil
+		_, _ = b.Answer(ctx, m, message.NewBody(Echo{Text: "How are you?"}), exchange.WithMaxFrom())
+		return nil, nil
 	})
 	b.Handle("error", func(ctx context.Context, m message.Message) (message.Body, error) {
 		var e Empty
@@ -186,11 +187,11 @@ func (s *Suit) TestSend(t *testing.T) {
 	defer b.Finish()
 
 	var e Echo
-	_, err = b.Send(s.ctx, message.New().
+	id, err := b.Send(s.ctx, message.New().
 		WithTo("service").
 		WithFrom("client").
 		WithMethod("echo").
-		WithBody(message.NewBody(Echo{Text: "Alice"})))
+		WithBody(message.NewBody(Echo{Text: "Alice"})), exchange.WithMaxFrom())
 	require.NoError(t, err)
 	m := <-s.messages
 	err = m.Decode(&e)
@@ -201,7 +202,7 @@ func (s *Suit) TestSend(t *testing.T) {
 		WithTo("service").
 		WithFrom("client").
 		WithMethod("hello").
-		WithBody(message.NewBody(Echo{Text: "Alice"})))
+		WithBody(message.NewBody(Echo{Text: "Alice"})), exchange.WithID(id))
 	require.NoError(t, err)
 	m = <-s.messages
 	err = m.Decode(&e)
@@ -261,10 +262,10 @@ func (s *Suit) TestSend(t *testing.T) {
 
 	s.group.Add(2)
 	_, err = b.Send(s.ctx, message.New().
+		WithType(message.Broadcast).
 		WithTo("service.two").
 		WithFrom("client").
 		WithMethod("number").
-		Every().
 		WithBody(message.NewBody(Empty{Number: 7})))
 	require.NoError(t, err)
 	s.group.Wait()

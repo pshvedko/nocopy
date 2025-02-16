@@ -204,6 +204,9 @@ type MarshalFunc func() ([]byte, error)
 func (f MarshalFunc) MarshalJSON() ([]byte, error) { return f() }
 
 func Encode(ctx context.Context, m Message, mediator Mediator) ([]byte, error) {
+	if m.ID() == uuid.Nil {
+		return nil, ErrEmpty
+	}
 	ww := mediator.Middleware(m.Method())
 	mm := append(make([]MarshalFunc, 0, 2+len(ww)), func() ([]byte, error) {
 		return json.Marshal(Envelope{

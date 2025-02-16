@@ -16,14 +16,18 @@ type Broker interface {
 	Handle(string, message.HandleFunc)
 	Catch(string, message.CatchFunc)
 	Use(message.Middleware)
-	Message(context.Context, string, string, message.Body, ...any) (uuid.UUID, error)
-	Request(context.Context, string, string, message.Body, ...any) (uuid.UUID, message.Message, error)
-	Send(context.Context, message.Message, ...any) (uuid.UUID, error)
+	Message(context.Context, string, string, message.Body, ...exchange.Option) (uuid.UUID, error)
+	Request(context.Context, string, string, message.Body, ...exchange.Option) (uuid.UUID, message.Message, error)
+	Answer(context.Context, message.Message, message.Body, ...exchange.Option) (uuid.UUID, error)
+	Send(context.Context, message.Message, ...exchange.Option) (uuid.UUID, error)
 	Listen(context.Context, string, ...string) error
+	Topic(int) (int, string)
 	Finish()
 	Shutdown()
 	Transport() exchange.Transport
 	Wrap(exchange.Transport)
+	MaxRequestTopic(bool)
+	MaxRespondTopic(bool)
 }
 
 func New(name string) (Broker, error) {
