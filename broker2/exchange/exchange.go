@@ -164,7 +164,7 @@ func (e *Exchange) Listen(ctx context.Context, on string, to ...string) error {
 }
 
 func (e *Exchange) Do(ctx context.Context, m message.Message) {
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancel(context.WithValue(ctx, m.Type(), m.ID()))
 
 	e.child.Add(1)
 	e.child.Store(ctx, cancel)
