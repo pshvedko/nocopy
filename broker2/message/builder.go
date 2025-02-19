@@ -82,8 +82,14 @@ func (w WrapperAnswer) To() string {
 	return w.Message.From()
 }
 
+// Type ...
+// 0000 Query     001
+// 0001 Answer    001
+// 0010 Request   001
+// 0011 Failure   011
+// 0100 Broadcast 001
 func (w WrapperAnswer) Type() Type {
-	return w.Message.Type()&Failure | Answer
+	return w.Message.Type()&Answer<<1&w.Message.Type()&Request | Answer
 }
 
 func (w Wrapper) Answer() Message { return WrapperAnswer{Message: w} }

@@ -264,7 +264,7 @@ func NewErrorString(code int, text string) Error {
 func NewError(code int, err error) Error { return NewErrorString(code, err.Error()) }
 
 type HandleFunc func(context.Context, Message) (Body, error)
-type CatchFunc func(context.Context, Message)
+type CatchFunc func(context.Context, Message) bool
 
 type Empty struct {
 	id uuid.UUID

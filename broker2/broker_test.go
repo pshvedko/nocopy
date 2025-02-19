@@ -92,7 +92,7 @@ func (s *Suit) TestService(t *testing.T) {
 		bb = append(bb, b)
 	}
 
-	t.Run("Send", s.TestSend)
+	t.Run("Query", s.TestQuery)
 
 	for _, b := range bb {
 		b.Shutdown()
@@ -107,8 +107,9 @@ type Empty struct {
 	Number int
 }
 
-func (s *Suit) Message(ctx context.Context, m message.Message) {
+func (s *Suit) Message(ctx context.Context, m message.Message) bool {
 	s.messages <- m
+	return true
 }
 
 func (s *Suit) NewService(i int, name string, topic ...string) (Broker, error) {
@@ -173,7 +174,7 @@ func (s *Suit) NewService(i int, name string, topic ...string) (Broker, error) {
 	return b, nil
 }
 
-func (s *Suit) TestSend(t *testing.T) {
+func (s *Suit) TestQuery(t *testing.T) {
 	b, err := New(s.url)
 	require.NoError(t, err)
 	defer b.Shutdown()
@@ -269,5 +270,11 @@ func (s *Suit) TestSend(t *testing.T) {
 		WithBody(message.NewBody(Empty{Number: 7})))
 	require.NoError(t, err)
 	s.group.Wait()
+
+	r, err := b.Request(s.ctx, "service", "hello", message.NewBody(Echo{Text: "Bob"}))
+	require.NoError(t, err)
+	err = r.Decode(&e)
+	require.NoError(t, err)
+	require.Equal(t, Echo{Text: "Hello, Bob!"}, e)
 
 }

@@ -107,6 +107,7 @@ func (e *Exchange) Message(ctx context.Context, to string, method string, body m
 	m := message.New().
 		WithMethod(method).
 		WithBody(body).
+		WithFrom(e.topic[0][0].subject).
 		WithTo(to).
 		Build()
 
@@ -119,6 +120,7 @@ func (e *Exchange) Request(ctx context.Context, to string, method string, body m
 		WithType(message.Request).
 		WithMethod(method).
 		WithBody(body).
+		WithFrom(e.topic[0][0].subject).
 		WithTo(to).
 		Build()
 	m = e.Apply(m, options...)
@@ -127,7 +129,7 @@ func (e *Exchange) Request(ctx context.Context, to string, method string, body m
 		method: method,
 	}
 
-	if e.reply.Store(k, c) {
+	if !e.reply.Store(k, c) {
 		return nil, message.ErrIllegalID
 	}
 
@@ -147,9 +149,32 @@ func (e *Exchange) Request(ctx context.Context, to string, method string, body m
 }
 
 func (e *Exchange) Answer(ctx context.Context, m message.Message, body message.Body, options ...Option) (uuid.UUID, error) {
+	if m.Type()&message.Answer == message.Answer {
+		return uuid.UUID{}, message.ErrIllegalType
+	}
+
 	m = message.NewMessage(m).
 		WithBody(body).
 		Answer()
+
+	return e.Send(ctx, m, options...)
+}
+
+func (e *Exchange) Forward(ctx context.Context, m message.Message, option ...Option) (uuid.UUID, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (e *Exchange) Backward(ctx context.Context, m message.Message, options ...Option) (uuid.UUID, error) {
+	if m.Type()&message.Answer == message.Query {
+		return uuid.UUID{}, message.ErrIllegalType
+	}
+	if len(m.Return()) == 0 {
+		return uuid.UUID{}, nil
+	}
+
+	m = message.NewMessage(m).
+		Backward()
 
 	return e.Send(ctx, m, options...)
 }
@@ -220,7 +245,7 @@ func (e *Exchange) Run(ctx context.Context, cancel context.CancelFunc, m message
 				b = b.WithError(err)
 				fallthrough
 			case r != nil:
-				_, _ = e.Answer(ctx, b.Build(), r)
+				_, _ = e.Send(ctx, b.WithBody(r).Answer())
 			}
 		}
 	case message.Failure, message.Answer:
@@ -234,8 +259,11 @@ func (e *Exchange) Run(ctx context.Context, cancel context.CancelFunc, m message
 		}
 		c, ok := e.catcher[m.Method()]
 		if ok {
-			c(ctx, m)
+			if c(ctx, m) {
+				break
+			}
 		}
+		_, _ = e.Backward(ctx, m)
 	}
 	e.child.Delete(ctx)
 	cancel()

@@ -18,6 +18,8 @@ type Broker interface {
 	Message(context.Context, string, string, message.Body, ...exchange.Option) (uuid.UUID, error)
 	Request(context.Context, string, string, message.Body, ...exchange.Option) (message.Message, error)
 	Answer(context.Context, message.Message, message.Body, ...exchange.Option) (uuid.UUID, error)
+	Backward(context.Context, message.Message, ...exchange.Option) (uuid.UUID, error)
+	Forward(context.Context, message.Message, ...exchange.Option) (uuid.UUID, error)
 	Send(context.Context, message.Message, ...exchange.Option) (uuid.UUID, error)
 	Listen(context.Context, string, ...string) error
 	Topic(int) (int, string)
