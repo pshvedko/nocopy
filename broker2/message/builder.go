@@ -199,13 +199,13 @@ func (w WrapperWithError) Decode(any) error {
 }
 
 func (w Wrapper) WithError(err error) Builder {
-	switch err := err.(type) {
+	switch e := err.(type) {
 	case nil:
 		return w
 	case Error:
-		return Wrapper{Message: WrapperWithError{Message: w, err: err}}
+		return Wrapper{Message: WrapperWithError{Message: w, err: e}}
 	default:
-		return Wrapper{Message: WrapperWithError{Message: w, err: NewError(500, err)}}
+		return Wrapper{Message: WrapperWithError{Message: w, err: NewError(500, e)}}
 	}
 }
 

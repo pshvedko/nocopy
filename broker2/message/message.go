@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
-
 	"github.com/google/uuid"
 )
 
@@ -256,12 +254,14 @@ func NewBody[T any](a T) Body {
 	}
 }
 
-func NewError[T any](code int, err T) Error {
+func NewErrorString(code int, text string) Error {
 	return Error{
 		Code: code,
-		Text: fmt.Sprint(err),
+		Text: text,
 	}
 }
+
+func NewError(code int, err error) Error { return NewErrorString(code, err.Error()) }
 
 type HandleFunc func(context.Context, Message) (Body, error)
 type CatchFunc func(context.Context, Message)

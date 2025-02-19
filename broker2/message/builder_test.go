@@ -1,9 +1,9 @@
 package message
 
 import (
-	"github.com/google/uuid"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
 
@@ -69,11 +69,13 @@ func TestWrapper_Build(t *testing.T) {
 	require.Equal(t, id, m.ID())
 
 	m = NewMessage(m).
+		WithError(NewError(123, ErrEmpty)).
 		Backward()
 
 	require.Equal(t, "000", m.To())
 	require.Equal(t, "111", m.From())
 	require.Equal(t, []string{}, m.Return())
-	require.Equal(t, Answer, m.Type())
+	require.Equal(t, Failure, m.Type())
 	require.Equal(t, id, m.ID())
+	require.ErrorIs(t, Error{123, "empty"}, m.Decode(struct{}{}))
 }
