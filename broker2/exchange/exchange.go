@@ -234,16 +234,15 @@ func (e *Exchange) Do(ctx context.Context, m message.Message) {
 }
 
 func (e *Exchange) Run(ctx context.Context, cancel context.CancelFunc, m message.Message) {
+	b := message.NewMessage(m)
 	switch m.Type() {
 	case message.Query, message.Request, message.Broadcast:
 		h, ok := e.handler[m.Method()]
 		if ok {
-			b := message.NewMessage(m)
 			r, err := h(ctx, b)
 			switch {
 			case err != nil:
-				b = b.WithError(err)
-				fallthrough
+				_, _ = e.Send(ctx, b.WithError(err).Answer())
 			case r != nil:
 				_, _ = e.Send(ctx, b.WithBody(r).Answer())
 			}
@@ -263,7 +262,7 @@ func (e *Exchange) Run(ctx context.Context, cancel context.CancelFunc, m message
 				break
 			}
 		}
-		_, _ = e.Backward(ctx, m)
+		_, _ = e.Send(ctx, b.Backward())
 	}
 	e.child.Delete(ctx)
 	cancel()
