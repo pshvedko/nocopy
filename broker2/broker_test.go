@@ -108,8 +108,12 @@ type Empty struct {
 }
 
 func (s *Suit) Message(ctx context.Context, m message.Message) bool {
-	s.messages <- m
-	return true
+	select {
+	case s.messages <- m:
+		return true
+	case <-ctx.Done():
+		return false
+	}
 }
 
 func (s *Suit) NewService(i int, name string, topic ...string) (Broker, error) {
@@ -132,6 +136,14 @@ func (s *Suit) NewService(i int, name string, topic ...string) (Broker, error) {
 			return nil, err
 		}
 		return message.NewBody(Echo{Text: "Hello, " + e.Text + "!"}), nil
+	})
+	b.Handle("hello2", func(ctx context.Context, m message.Message) (message.Body, error) {
+		var e Echo
+		err := m.Decode(&e)
+		if err != nil {
+			return nil, err
+		}
+		return message.NewBody(Echo{Text: "Hello, " + e.Text + "!!"}), nil
 	})
 	b.Handle("empty", func(ctx context.Context, m message.Message) (message.Body, error) {
 		var e Empty
@@ -271,10 +283,25 @@ func (s *Suit) TestQuery(t *testing.T) {
 	require.NoError(t, err)
 	s.group.Wait()
 
-	r, err := b.Request(s.ctx, "service", "hello", message.NewBody(Echo{Text: "Bob"}))
+	m, err = b.Request(s.ctx, "service", "hello", message.NewBody(Echo{Text: "Bob"}))
 	require.NoError(t, err)
-	err = r.Decode(&e)
+	err = m.Decode(&e)
 	require.NoError(t, err)
 	require.Equal(t, Echo{Text: "Hello, Bob!"}, e)
+
+	m, err = b.Request(s.ctx, "service", "hello2", message.NewBody(Echo{Text: "Bob"}))
+	require.NoError(t, err)
+	err = m.Decode(&e)
+	require.NoError(t, err)
+	require.Equal(t, Echo{Text: "Hello, Bob!!"}, e)
+
+	m, err = b.Request(s.ctx, "service", "error", message.NewBody(Empty{}))
+	require.NoError(t, err)
+	err = m.Decode(&e)
+	require.Error(t, err)
+	require.ErrorIs(t, err, message.Error{
+		Code: 500,
+		Text: os.ErrClosed.Error(),
+	})
 
 }
