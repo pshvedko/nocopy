@@ -116,7 +116,7 @@ func (e *Exchange) Message(ctx context.Context, to string, method string, body m
 func (e *Exchange) Request(ctx context.Context, to string, method string, body message.Body, options ...Option) (message.Message, error) {
 	c := make(chan message.Message, 1)
 	m := message.New().
-		WithType(message.Synchro).
+		WithType(message.Request).
 		WithMethod(method).
 		WithBody(body).
 		WithTo(to).
@@ -210,7 +210,7 @@ func (e *Exchange) Do(ctx context.Context, m message.Message) {
 
 func (e *Exchange) Run(ctx context.Context, cancel context.CancelFunc, m message.Message) {
 	switch m.Type() {
-	case message.Query, message.Synchro, message.Broadcast:
+	case message.Query, message.Request, message.Broadcast:
 		h, ok := e.handler[m.Method()]
 		if ok {
 			b := message.NewMessage(m)

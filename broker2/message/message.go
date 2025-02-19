@@ -22,7 +22,7 @@ type Type int
 const (
 	Query Type = iota
 	Answer
-	Synchro
+	Request
 	Failure
 	Broadcast
 )
@@ -153,7 +153,7 @@ func Decode(ctx context.Context, bytes []byte, mediator Mediator) (context.Conte
 			return err
 		}
 		switch r.Envelope.Type {
-		case Query, Synchro, Broadcast:
+		case Query, Request, Broadcast:
 			for _, w := range mediator.Middleware(r.Envelope.Method) {
 				uu = append(uu,
 					func(bytes []byte) (err error) {

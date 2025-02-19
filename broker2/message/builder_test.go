@@ -10,7 +10,7 @@ import (
 func TestWrapper_Build(t *testing.T) {
 	id := uuid.New()
 	m := New().
-		WithType(Synchro).
+		WithType(Request).
 		WithID(id).
 		WithTo("100").
 		WithFrom("000").
@@ -19,7 +19,7 @@ func TestWrapper_Build(t *testing.T) {
 	require.Equal(t, "100", m.To())
 	require.Equal(t, "000", m.From())
 	require.Equal(t, []string{}, m.Return())
-	require.Equal(t, Synchro, m.Type())
+	require.Equal(t, Request, m.Type())
 	require.Equal(t, id, m.ID())
 
 	m = NewMessage(m).
