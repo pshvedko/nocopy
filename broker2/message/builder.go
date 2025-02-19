@@ -12,11 +12,11 @@ type Builder interface {
 	WithFrom(string) Builder
 	WithTo(string) Builder
 	WithMethod(string) Builder
-	WithReturn(...string) Builder
 	WithError(error) Builder
 	WithBody(any) Builder
-	Answer() Builder
-	Forward(string) Builder
+	Answer() Message
+	Forward(string) Message
+	Backward() Message
 	Build() Message
 }
 
@@ -27,6 +27,25 @@ type Wrapper struct {
 func (w Wrapper) Build() Message {
 	return w.Message
 }
+
+type WrapperBackward struct {
+	Message
+	n int
+}
+
+func (w WrapperBackward) From() string {
+	return w.Message.To()
+}
+
+func (w WrapperBackward) Return() []string {
+	return w.Message.Return()[:w.n]
+}
+
+func (w WrapperBackward) To() string {
+	return w.Message.Return()[w.n]
+}
+
+func (w Wrapper) Backward() Message { return WrapperBackward{Message: w, n: len(w.Return()) - 1} }
 
 type WrapperForward struct {
 	Message
@@ -45,9 +64,11 @@ func (w WrapperForward) To() string {
 	return w.to
 }
 
-func (w Wrapper) Forward(to string) Builder {
-	return Wrapper{Message: WrapperForward{Message: w, to: to}}
+func (w WrapperForward) Type() Type {
+	return Query
 }
+
+func (w Wrapper) Forward(to string) Message { return WrapperForward{Message: w, to: to} }
 
 type WrapperAnswer struct {
 	Message
@@ -65,9 +86,7 @@ func (w WrapperAnswer) Type() Type {
 	return w.Message.Type()&Failure | Answer
 }
 
-func (w Wrapper) Answer() Builder {
-	return Wrapper{Message: WrapperAnswer{Message: w}}
-}
+func (w Wrapper) Answer() Message { return WrapperAnswer{Message: w} }
 
 type WrapperWithType struct {
 	Message
@@ -113,13 +132,13 @@ func (w WrapperWithBody) Decode(v any) error {
 }
 
 func (w Wrapper) WithBody(body any) Builder {
-	switch body := body.(type) {
+	switch b := body.(type) {
 	case nil:
 		return w
 	case Body:
-		return Wrapper{Message: WrapperWithBody{Message: w, body: body}}
+		return Wrapper{Message: WrapperWithBody{Message: w, body: b}}
 	default:
-		return Wrapper{Message: WrapperWithBody{Message: w, body: NewBody(body)}}
+		return Wrapper{Message: WrapperWithBody{Message: w, body: NewBody(b)}}
 	}
 }
 
@@ -160,19 +179,6 @@ func (w WrapperWithMethod) Method() string {
 
 func (w Wrapper) WithMethod(method string) Builder {
 	return Wrapper{Message: WrapperWithMethod{Message: w, method: method}}
-}
-
-type WrapperWithReturn struct {
-	Message
-	path []string
-}
-
-func (w WrapperWithReturn) Return() []string {
-	return w.path
-}
-
-func (w Wrapper) WithReturn(path ...string) Builder {
-	return Wrapper{Message: WrapperWithReturn{Message: w, path: path}}
 }
 
 type WrapperWithError struct {

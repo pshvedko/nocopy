@@ -148,9 +148,8 @@ func (e *Exchange) Request(ctx context.Context, to string, method string, body m
 
 func (e *Exchange) Answer(ctx context.Context, m message.Message, body message.Body, options ...Option) (uuid.UUID, error) {
 	m = message.NewMessage(m).
-		Answer().
 		WithBody(body).
-		Build()
+		Answer()
 
 	return e.Send(ctx, m, options...)
 }
