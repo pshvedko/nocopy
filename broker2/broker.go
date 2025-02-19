@@ -15,9 +15,8 @@ import (
 type Broker interface {
 	Handle(string, message.HandleFunc)
 	Catch(string, message.CatchFunc)
-	Use(message.Middleware)
 	Message(context.Context, string, string, message.Body, ...exchange.Option) (uuid.UUID, error)
-	Request(context.Context, string, string, message.Body, ...exchange.Option) (uuid.UUID, message.Message, error)
+	Request(context.Context, string, string, message.Body, ...exchange.Option) (message.Message, error)
 	Answer(context.Context, message.Message, message.Body, ...exchange.Option) (uuid.UUID, error)
 	Send(context.Context, message.Message, ...exchange.Option) (uuid.UUID, error)
 	Listen(context.Context, string, ...string) error
@@ -25,9 +24,9 @@ type Broker interface {
 	Finish()
 	Shutdown()
 	Transport() exchange.Transport
-	Wrap(exchange.Transport)
-	MaxRequestTopic(bool)
-	MaxRespondTopic(bool)
+	UseTransport(exchange.Transport)
+	UseMiddleware(...message.Middleware)
+	UseOptions(...exchange.Option)
 }
 
 func New(name string) (Broker, error) {

@@ -165,7 +165,7 @@ func (s *Suit) NewService(i int, name string, topic ...string) (Broker, error) {
 		}
 		return message.NewBody(Empty{Number: i}), nil
 	})
-	b.Wrap(LogTransport{Transport: b.Transport(), N: fmt.Sprint(i)})
+	b.UseTransport(LogTransport{Transport: b.Transport(), N: fmt.Sprint(i)})
 	err = b.Listen(s.ctx, name, topic...)
 	if err != nil {
 		return nil, err

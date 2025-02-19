@@ -14,6 +14,7 @@ var (
 	ErrIllegalType      = errors.New("illegal type")
 	ErrNoPayload        = errors.New("no payload")
 	ErrEmpty            = errors.New("empty")
+	ErrIllegalID        = errors.New("illegal id")
 )
 
 type Type int
