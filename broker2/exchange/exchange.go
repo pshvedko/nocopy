@@ -104,13 +104,19 @@ func (e *Exchange) Catch(method string, catcher message.CatchFunc) {
 }
 
 func (e *Exchange) Message(ctx context.Context, to string, method string, body message.Body, options ...Option) (uuid.UUID, error) {
-	//TODO implement me
-	panic("implement me")
+	m := message.New().
+		WithMethod(method).
+		WithBody(body).
+		WithTo(to).
+		Build()
+
+	return e.Send(ctx, m, options...)
 }
 
 func (e *Exchange) Request(ctx context.Context, to string, method string, body message.Body, options ...Option) (message.Message, error) {
 	c := make(chan message.Message, 1)
 	m := message.New().
+		WithType(message.Synchro).
 		WithMethod(method).
 		WithBody(body).
 		WithTo(to).
@@ -125,7 +131,7 @@ func (e *Exchange) Request(ctx context.Context, to string, method string, body m
 		return nil, message.ErrIllegalID
 	}
 
-	_, err := e.Send(ctx, m)
+	_, err := e.Send(ctx, m, options...)
 	if err == nil {
 		select {
 		case m = <-c:
@@ -141,7 +147,11 @@ func (e *Exchange) Request(ctx context.Context, to string, method string, body m
 }
 
 func (e *Exchange) Answer(ctx context.Context, m message.Message, body message.Body, options ...Option) (uuid.UUID, error) {
-	m = message.NewMessage(m).Answer().WithBody(body).Build()
+	m = message.NewMessage(m).
+		Answer().
+		WithBody(body).
+		Build()
+
 	return e.Send(ctx, m, options...)
 }
 
@@ -149,8 +159,10 @@ func (e *Exchange) Send(ctx context.Context, m message.Message, options ...Optio
 	if ctx.Value(message.Broadcast) != nil && m.Type()&message.Answer == message.Answer {
 		return uuid.UUID{}, nil
 	}
+
 	m = e.Apply(m, e.options...)
 	m = e.Apply(m, options...)
+
 	return m.ID(), e.transport.Publish(ctx, m, e)
 }
 

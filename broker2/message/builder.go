@@ -204,9 +204,7 @@ func (w Wrapper) WithError(err error) Builder {
 }
 
 func NewMessage(m Message) Builder {
-	return Wrapper{
-		Message: m,
-	}
+	return Wrapper{Message: m}
 }
 
 type BuilderWithType interface {
@@ -215,7 +213,5 @@ type BuilderWithType interface {
 }
 
 func New() BuilderWithType {
-	return Wrapper{
-		Message: Empty{id: uuid.New()},
-	}
+	return Wrapper{Message: Empty{id: uuid.New()}}
 }
