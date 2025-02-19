@@ -274,7 +274,7 @@ func (e Empty) ID() uuid.UUID { return e.id }
 
 func (e Empty) From() string { return "" }
 
-func (e Empty) Return() []string { return nil }
+func (e Empty) Return() []string { return []string{} }
 
 func (e Empty) To() string { return "" }
 

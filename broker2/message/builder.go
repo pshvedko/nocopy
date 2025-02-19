@@ -218,6 +218,10 @@ type BuilderWithType interface {
 	WithType(Type) Builder
 }
 
+func NewWithID(id uuid.UUID) BuilderWithType {
+	return Wrapper{Message: Empty{id: id}}
+}
+
 func New() BuilderWithType {
-	return Wrapper{Message: Empty{id: uuid.New()}}
+	return NewWithID(uuid.New())
 }
