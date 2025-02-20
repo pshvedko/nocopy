@@ -21,28 +21,28 @@ type LogTransport struct {
 }
 
 type LogInput struct {
-	exchange.Doer
+	message.Decoder
 	N string
 }
 
 func (i LogInput) Do(ctx context.Context, m message.Message) {
 	slog.Info(i.N+" <-READ", "id", m.ID(), "by", m.Method(), "at", m.To(), "from", m.From(), "type", m.Type())
-	i.Doer.Do(ctx, m)
+	i.Decoder.Do(ctx, m)
 }
 
-func (t LogTransport) Subscribe(ctx context.Context, at string, mediator message.Mediator, doer exchange.Doer) (exchange.Subscription, error) {
+func (t LogTransport) Subscribe(ctx context.Context, at string, decoder message.Decoder) (exchange.Subscription, error) {
 	slog.Info(t.N+" LISTEN", "at", at, "wide", true)
-	return t.Transport.Subscribe(ctx, at, mediator, LogInput{Doer: doer, N: t.N})
+	return t.Transport.Subscribe(ctx, at, LogInput{Decoder: decoder, N: t.N})
 }
 
-func (t LogTransport) QueueSubscribe(ctx context.Context, at string, by string, mediator message.Mediator, doer exchange.Doer) (exchange.Subscription, error) {
+func (t LogTransport) QueueSubscribe(ctx context.Context, at string, by string, decoder message.Decoder) (exchange.Subscription, error) {
 	slog.Info(t.N+" LISTEN", "at", at)
-	return t.Transport.QueueSubscribe(ctx, at, by, mediator, LogInput{Doer: doer, N: t.N})
+	return t.Transport.QueueSubscribe(ctx, at, by, LogInput{Decoder: decoder, N: t.N})
 }
 
-func (t LogTransport) Publish(ctx context.Context, m message.Message, mediator message.Mediator) error {
+func (t LogTransport) Publish(ctx context.Context, m message.Message, encoder message.Encoder) error {
 	out := slog.With("id", m.ID(), "by", m.Method(), "at", m.From(), "to", m.To(), "type", m.Type())
-	err := t.Transport.Publish(ctx, m, mediator)
+	err := t.Transport.Publish(ctx, m, encoder)
 	if err != nil {
 		out = out.With("error", err)
 	}

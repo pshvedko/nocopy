@@ -14,15 +14,11 @@ type Subscription interface {
 	Drain() error
 }
 
-type Doer interface {
-	Do(context.Context, message.Message)
-}
-
 type Transport interface {
 	Flush() error
-	Subscribe(context.Context, string, message.Mediator, Doer) (Subscription, error)
-	QueueSubscribe(context.Context, string, string, message.Mediator, Doer) (Subscription, error)
-	Publish(context.Context, message.Message, message.Mediator) error
+	Subscribe(context.Context, string, message.Decoder) (Subscription, error)
+	QueueSubscribe(context.Context, string, string, message.Decoder) (Subscription, error)
+	Publish(context.Context, message.Message, message.Encoder) error
 	Unsubscribe(Topic) error
 	Close()
 }
@@ -56,6 +52,14 @@ type Exchange struct {
 	functor   map[string][]message.Middleware
 	wrapper   []message.Middleware
 	options   []Option
+}
+
+func (e *Exchange) Encode(ctx context.Context, m message.Message) ([]byte, error) {
+	return message.Encode(ctx, m, e)
+}
+
+func (e *Exchange) Decode(ctx context.Context, bytes []byte) (context.Context, message.Message, error) {
+	return message.Decode(ctx, bytes, e)
 }
 
 func (e *Exchange) UseOptions(options ...Option) {
@@ -160,9 +164,15 @@ func (e *Exchange) Answer(ctx context.Context, m message.Message, body message.B
 	return e.Send(ctx, m, options...)
 }
 
-func (e *Exchange) Forward(ctx context.Context, m message.Message, option ...Option) (uuid.UUID, error) {
-	//TODO implement me
-	panic("implement me")
+func (e *Exchange) Forward(ctx context.Context, to string, m message.Message, options ...Option) (uuid.UUID, error) {
+	if m.Type()&message.Answer == message.Answer {
+		return uuid.UUID{}, message.ErrIllegalType
+	}
+
+	m = message.NewMessage(m).
+		Forward(to)
+
+	return e.Send(ctx, m, options...)
 }
 
 func (e *Exchange) Backward(ctx context.Context, m message.Message, options ...Option) (uuid.UUID, error) {
@@ -180,7 +190,7 @@ func (e *Exchange) Backward(ctx context.Context, m message.Message, options ...O
 }
 
 func (e *Exchange) Send(ctx context.Context, m message.Message, options ...Option) (uuid.UUID, error) {
-	if ctx.Value(message.Broadcast) != nil && m.Type()&message.Answer == message.Answer {
+	if m.Type()&message.Answer == message.Answer && ctx.Value(message.Broadcast) != nil {
 		return uuid.UUID{}, nil
 	}
 
@@ -193,7 +203,7 @@ func (e *Exchange) Send(ctx context.Context, m message.Message, options ...Optio
 func (e *Exchange) Listen(ctx context.Context, on string, to ...string) error {
 	at := on
 	for {
-		s, err := e.transport.QueueSubscribe(ctx, at, on, e, e)
+		s, err := e.transport.QueueSubscribe(ctx, at, on, e)
 		if err != nil {
 			return err
 		}
@@ -207,7 +217,7 @@ func (e *Exchange) Listen(ctx context.Context, on string, to ...string) error {
 			break
 		}
 
-		s, err = e.transport.Subscribe(ctx, at, e, e)
+		s, err = e.transport.Subscribe(ctx, at, e)
 		if err != nil {
 			return err
 		}
@@ -262,7 +272,9 @@ func (e *Exchange) Run(ctx context.Context, cancel context.CancelFunc, m message
 				break
 			}
 		}
-		_, _ = e.Send(ctx, b.Backward())
+		if len(m.Return()) > 0 {
+			_, _ = e.Send(ctx, b.Backward())
+		}
 	}
 	e.child.Delete(ctx)
 	cancel()

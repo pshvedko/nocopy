@@ -66,6 +66,19 @@ type Mediator interface {
 	Middleware(string) []Middleware
 }
 
+type Encoder interface {
+	Encode(context.Context, Message) ([]byte, error)
+}
+
+type Decoder interface {
+	Decode(context.Context, []byte) (context.Context, Message, error)
+	Processor
+}
+
+type Processor interface {
+	Do(context.Context, Message)
+}
+
 type Envelope struct {
 	ID     uuid.UUID `json:"id,omitempty"`
 	From   string    `json:"from,omitempty"`
