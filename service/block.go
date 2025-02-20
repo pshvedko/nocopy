@@ -17,18 +17,14 @@ import (
 	"github.com/pshvedko/nocopy/storage"
 )
 
-type Boundary struct {
-	atomic.Uint64
-}
-
 type Block struct {
 	http.Server
 	broker.Broker
 	storage.Storage
 	repository.Repository
 	atomic.Bool
-	Boundary Boundary
-	Size     int64
+	atomic.Uint64
+	Size int64
 }
 
 type WaitGroup struct {
