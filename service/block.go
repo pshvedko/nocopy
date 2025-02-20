@@ -17,18 +17,6 @@ import (
 	"github.com/pshvedko/nocopy/storage"
 )
 
-type Options struct {
-	Context       context.Context
-	ListenAddress string
-	FileStorage   string
-	DataBase      string
-}
-
-type Server interface {
-	ListenAndServe() error
-	Shutdown(context.Context) error
-}
-
 type Boundary struct {
 	atomic.Uint64
 }
