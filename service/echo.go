@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"github.com/pshvedko/nocopy/internal/log"
 	"log/slog"
 	"os"
 	"sync"
@@ -11,6 +10,7 @@ import (
 	"github.com/pshvedko/nocopy/api"
 	"github.com/pshvedko/nocopy/broker"
 	"github.com/pshvedko/nocopy/broker/message"
+	"github.com/pshvedko/nocopy/internal/log"
 )
 
 const maxInFly = 64 * 1024
@@ -49,7 +49,10 @@ func (s *Proxy) Echo(ctx context.Context, concurrency, quantity int, pipe string
 			for n := range c {
 				q <- struct{}{}
 				w.Add(1)
-				_, err = s.Broker.Message(ctx, "proxy", "echo", message.NewBody(api.Echo{Serial: n}))
+				_, err = s.Broker.Message(ctx, "proxy", "echo", message.NewBody(api.Echo{
+					Serial: n,
+					Delay:  0 * time.Second,
+				}))
 				if err != nil {
 					<-q
 					w.Done()
@@ -91,8 +94,18 @@ func (s *Proxy) Echo(ctx context.Context, concurrency, quantity int, pipe string
 	return nil
 }
 
-func (s *Proxy) EchoQuery(_ context.Context, m message.Message) (message.Body, error) {
-	return m, nil
+func (s *Proxy) EchoQuery(ctx context.Context, m message.Message) (message.Body, error) {
+	var echo api.Echo
+	err := m.Decode(&echo)
+	if err != nil {
+		return nil, err
+	}
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-time.After(echo.Delay):
+		return m, nil
+	}
 }
 
 func (s *Proxy) EchoReply(_ context.Context, m message.Message) bool {

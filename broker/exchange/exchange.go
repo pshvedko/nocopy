@@ -240,11 +240,12 @@ func (e *Exchange) Do(ctx context.Context, m message.Message) {
 
 	e.child.Store(ctx, cancel)
 
-	go e.Run(ctx, cancel, m)
+	go e.Run(ctx, m)
 }
 
-func (e *Exchange) Run(ctx context.Context, cancel context.CancelFunc, m message.Message) {
+func (e *Exchange) Run(ctx context.Context, m message.Message) {
 	b := message.NewMessage(m)
+
 	switch m.Type() {
 	case message.Query, message.Request, message.Broadcast:
 		h, ok := e.handler[m.Method()]
@@ -276,8 +277,11 @@ func (e *Exchange) Run(ctx context.Context, cancel context.CancelFunc, m message
 			_, _ = e.Send(ctx, b.Backward())
 		}
 	}
-	e.child.Delete(ctx)
-	cancel()
+
+	cancel, ok := e.child.Delete(ctx)
+	if ok {
+		cancel()
+	}
 }
 
 func (e *Exchange) Finish() {
@@ -287,10 +291,7 @@ func (e *Exchange) Finish() {
 		}
 	}
 	e.child.Range(func(ctx context.Context, cancel context.CancelFunc) bool {
-		_, ok := e.child.Delete(ctx)
-		if ok {
-			cancel()
-		}
+		cancel()
 		return true
 	})
 	e.child.Wait()

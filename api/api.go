@@ -18,7 +18,8 @@ type FileReply struct {
 }
 
 type Echo struct {
-	Serial int `json:"serial"`
+	Serial int           `json:"serial"`
+	Delay  time.Duration `json:"delay"`
 }
 
 type Head struct {
