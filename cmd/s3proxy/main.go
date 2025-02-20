@@ -9,7 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/pshvedko/nocopy/log"
+	"github.com/pshvedko/nocopy/internal/log"
 	"github.com/pshvedko/nocopy/service"
 )
 

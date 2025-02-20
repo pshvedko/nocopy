@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"github.com/pshvedko/nocopy/internal/log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -15,6 +17,7 @@ func main() {
 	var baseFlag string
 	var fileFlag string
 	var pipeFlag string
+	var levelFlag slog.Level
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
@@ -23,6 +26,9 @@ func main() {
 	c := &cobra.Command{
 		Use:  "s3chain",
 		Long: "S3 (not yet) compatible copy less proxy service",
+		PersistentPreRun: func(*cobra.Command, []string) {
+			slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: levelFlag})))
+		},
 		PreRun: func(*cobra.Command, []string) {
 			context.AfterFunc(ctx, s.Stop)
 		},
@@ -31,6 +37,7 @@ func main() {
 		},
 	}
 
+	c.Flags().VarP(log.NewLogLevel(&levelFlag, slog.LevelInfo), "level", "l", "log level")
 	c.Flags().StringVar(&baseFlag, "base", "postgres://postgres:postgres@postgres:5432/nocopy", "data base")
 	c.Flags().StringVar(&fileFlag, "file", "minio://admin:admin123@minio:9000/nocopy", "file storage")
 	c.Flags().StringVar(&pipeFlag, "pipe", "nats://nats", "message broker")

@@ -7,30 +7,46 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/pshvedko/nocopy/broker/exchange"
 	"github.com/pshvedko/nocopy/broker/message"
-	"github.com/pshvedko/nocopy/broker/nats"
+	"github.com/pshvedko/nocopy/broker/transport/nats"
 )
 
 type Broker interface {
-	At(int) string
-	Handle(string, message.Handler)
-	Catch(string, message.Catcher)
-	Message(context.Context, string, string, any, ...any) (uuid.UUID, error)
-	Request(context.Context, string, string, any, ...any) (uuid.UUID, message.Message, error)
-	Send(context.Context, message.Message, ...any) (uuid.UUID, error)
-	Listen(context.Context, string, string, string) error
+	Handle(string, message.HandleFunc)
+	Catch(string, message.CatchFunc)
+	Message(context.Context, string, string, message.Body, ...exchange.Option) (uuid.UUID, error)
+	Request(context.Context, string, string, message.Body, ...exchange.Option) (message.Message, error)
+	Answer(context.Context, message.Message, message.Body, ...exchange.Option) (uuid.UUID, error)
+	Forward(context.Context, string, message.Message, ...exchange.Option) (uuid.UUID, error)
+	Backward(context.Context, message.Message, ...exchange.Option) (uuid.UUID, error)
+	Send(context.Context, message.Message, ...exchange.Option) (uuid.UUID, error)
+	Listen(context.Context, string, ...string) error
+	Topic(int) (int, string)
 	Finish()
 	Shutdown()
+	Transport() exchange.Transport // TODO move to transport
+	UseTransport(exchange.Transport)
+	UseMiddleware(...message.Middleware)
+	UseOptions(...exchange.Option)
 }
 
 func New(name string) (Broker, error) {
-	ur1, err := url.Parse(name)
+	t, err := NewTransport(name)
 	if err != nil {
 		return nil, err
 	}
-	switch ur1.Scheme {
+	return exchange.New(t), nil
+}
+
+func NewTransport(name string) (exchange.Transport, error) {
+	u, err := url.Parse(name)
+	if err != nil {
+		return nil, err
+	}
+	switch u.Scheme {
 	case "nats":
-		return nats.New(ur1)
+		return nats.New(u)
 	default:
 		return nil, errors.New("invalid broker scheme")
 	}

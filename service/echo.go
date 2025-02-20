@@ -2,14 +2,18 @@ package service
 
 import (
 	"context"
+	"github.com/pshvedko/nocopy/internal/log"
 	"log/slog"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/pshvedko/nocopy/api"
 	"github.com/pshvedko/nocopy/broker"
 	"github.com/pshvedko/nocopy/broker/message"
 )
+
+const maxInFly = 64 * 1024
 
 func (s *Proxy) Echo(ctx context.Context, concurrency, quantity int, pipe string) error {
 	if !s.Bool.CompareAndSwap(false, true) {
@@ -24,7 +28,14 @@ func (s *Proxy) Echo(ctx context.Context, concurrency, quantity int, pipe string
 		return err
 	}
 	defer s.Broker.Shutdown()
-	s.Broker.Catch("echo", s.EchoReply)
+	s.Broker.UseTransport(log.Transport{Transport: s.Transport()})
+	var w sync.WaitGroup
+	q := make(chan struct{}, maxInFly)
+	s.Broker.Catch("echo", func(ctx context.Context, m message.Message) bool {
+		<-q
+		w.Done()
+		return s.EchoReply(ctx, m)
+	})
 	slog.Info("echo", "concurrency", concurrency, "quantity", quantity)
 	err = s.Broker.Listen(ctx, "echo", host, "1")
 	if err != nil {
@@ -32,48 +43,62 @@ func (s *Proxy) Echo(ctx context.Context, concurrency, quantity int, pipe string
 	}
 	c := make(chan int, concurrency)
 	e := make(chan error)
-	t := time.Now()
 	for i := 0; i < concurrency; i++ {
 		go func() {
 			var err error
 			for n := range c {
-				s.Add(1)
-				_, err = s.Broker.Message(ctx, "proxy", "echo", api.Echo{Serial: n})
+				q <- struct{}{}
+				w.Add(1)
+				_, err = s.Broker.Message(ctx, "proxy", "echo", message.NewBody(api.Echo{Serial: n}))
 				if err != nil {
+					<-q
+					w.Done()
 					break
 				}
 			}
 			e <- err
 		}()
 	}
-	var done bool
-	for i := 0; i < quantity && concurrency > 0 && !done; i++ {
+	t := time.Now()
+	for i := 0; i < quantity && concurrency > 0; i++ {
 		select {
 		case <-ctx.Done():
-			done = true
+			slog.Warn("echo", "err", ctx.Err())
+			quantity = i
 		default:
 			select {
 			case c <- i:
-			case <-e:
+			case err = <-e:
+				if err != nil {
+					slog.Error("echo", "err", err)
+				}
 				concurrency--
 			}
 		}
 	}
 	close(c)
 	for i := 0; i < concurrency; i++ {
-		<-e
+		err = <-e
+		if err != nil {
+			slog.Error("echo", "err", err)
+		}
 	}
 	close(e)
-	s.WaitGroup.Wait()
+	w.Wait()
 	s.Broker.Finish()
-	slog.Info("echo", "time", time.Since(t)/time.Duration(quantity))
+	since := time.Since(t)
+	slog.Info("echo", "time", since/time.Duration(quantity))
 	return nil
 }
 
-func (s *Proxy) EchoQuery(_ context.Context, m message.Message) (any, error) {
+func (s *Proxy) EchoQuery(_ context.Context, m message.Message) (message.Body, error) {
 	return m, nil
 }
 
-func (s *Proxy) EchoReply(context.Context, message.Message) {
-	s.Done()
+func (s *Proxy) EchoReply(_ context.Context, m message.Message) bool {
+	err := m.Decode(&api.Echo{})
+	if err != nil {
+		slog.Error("echo", "err", err)
+	}
+	return true
 }

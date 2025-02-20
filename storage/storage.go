@@ -17,13 +17,13 @@ type Storage interface {
 }
 
 func New(name string) (Storage, error) {
-	ur1, err := url.Parse(name)
+	u, err := url.Parse(name)
 	if err != nil {
 		return nil, err
 	}
-	switch ur1.Scheme {
+	switch u.Scheme {
 	case "minio":
-		return minio.New(ur1)
+		return minio.New(u)
 	default:
 		return nil, errors.New("invalid storage scheme")
 	}

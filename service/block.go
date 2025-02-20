@@ -39,9 +39,9 @@ type Block struct {
 	storage.Storage
 	repository.Repository
 	atomic.Bool
-	sync.WaitGroup
-	Boundary
-	Size int64
+	Request  sync.WaitGroup
+	Boundary Boundary
+	Size     int64
 }
 
 func (s *Block) Run(ctx context.Context, addr, port, base, file, pipe string, size int64) error {
@@ -85,9 +85,7 @@ func (s *Block) Run(ctx context.Context, addr, port, base, file, pipe string, si
 	s.Addr = net.JoinHostPort(addr, port)
 	s.BaseContext = func(net.Listener) context.Context { return ctx }
 	s.Server.RegisterOnShutdown(s.Broker.Finish)
-	defer s.WaitGroup.Wait()
-	s.WaitGroup.Add(1)
-	defer s.WaitGroup.Done()
+	defer s.Request.Wait()
 	return s.Server.ListenAndServe()
 }
 
