@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 
-	"github.com/pshvedko/nocopy/broker2/message"
+	"github.com/pshvedko/nocopy/broker/message"
 	"github.com/pshvedko/nocopy/internal"
 )
 

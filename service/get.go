@@ -10,13 +10,13 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/pshvedko/nocopy/service/io"
-	"github.com/pshvedko/nocopy/service/multipart"
+	"github.com/pshvedko/nocopy/internal/io"
+	"github.com/pshvedko/nocopy/internal/multipart"
 )
 
 func (s *Block) Get(w http.ResponseWriter, r *http.Request) {
-	s.Add(1)
-	defer s.Done()
+	s.Request.Add(1)
+	defer s.Request.Done()
 	var err error
 	var ranges []multipart.Range
 	var blocks []uuid.UUID

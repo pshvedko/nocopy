@@ -2,45 +2,40 @@ package service
 
 import (
 	"context"
-	"github.com/google/uuid"
 	"log/slog"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/pshvedko/nocopy/api"
 	"github.com/pshvedko/nocopy/broker/message"
-	"github.com/pshvedko/nocopy/service/io"
+	"github.com/pshvedko/nocopy/internal/io"
 )
 
-func (s *Proxy) FileQuery(ctx context.Context, m message.Message) (any, error) {
-	s.Add(1)
-	defer s.Done()
-	_, err := s.Broker.Send(ctx, message.Forward{To: "chain", Message: m})
+func (s *Proxy) FileQuery(ctx context.Context, m message.Message) (message.Body, error) {
+	_, err := s.Broker.Forward(ctx, "chain", m)
 	return nil, err
 }
 
-func (s *Proxy) FileReply(ctx context.Context, m message.Message) {
-	s.Add(1)
-	defer s.Done()
-	_, _ = s.Broker.Send(ctx, message.Backward{Message: m})
+func (s *Proxy) FileReply(ctx context.Context, m message.Message) bool {
+	_, _ = s.Broker.Backward(ctx, m)
+	return true
 }
 
-func (s *Block) FileReply(_ context.Context, m message.Message) {
-	s.Add(1)
-	defer s.Done()
+func (s *Block) FileReply(_ context.Context, m message.Message) bool {
 	var reply api.FileReply
-	err := m.Unmarshal(&reply)
+	err := m.Decode(&reply)
 	if err != nil {
 		slog.Warn("file", "err", err)
 	} else {
 		slog.Warn("file", "time", reply.Time)
 	}
+	return true
 }
 
-func (s *Chain) FileQuery(ctx context.Context, m message.Message) (any, error) {
-	s.Add(1)
-	defer s.Done()
+func (s *Chain) FileQuery(ctx context.Context, m message.Message) (message.Body, error) {
 	var file api.File
-	err := m.Unmarshal(&file)
+	err := m.Decode(&file)
 	if err != nil {
 		return nil, err
 	}
@@ -49,7 +44,7 @@ func (s *Chain) FileQuery(ctx context.Context, m message.Message) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return api.FileReply{Time: time.Now()}, nil
+	return message.NewBody(api.FileReply{Time: time.Now()}), nil
 }
 
 func (s *Chain) File(ctx context.Context, chains []uuid.UUID, blocks []uuid.UUID, hashes [][]byte, sizes []int64) error {

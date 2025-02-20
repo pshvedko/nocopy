@@ -1,9 +1,8 @@
-package exchange
+package broker
 
 import (
 	"context"
-	"fmt"
-	"log/slog"
+	"github.com/pshvedko/nocopy/internal/log"
 	"os"
 	"sync"
 	"testing"
@@ -11,54 +10,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/pshvedko/nocopy/broker2/exchange"
-	"github.com/pshvedko/nocopy/broker2/message"
+	"github.com/pshvedko/nocopy/broker/exchange"
+	"github.com/pshvedko/nocopy/broker/message"
 )
-
-type LogTransport struct {
-	exchange.Transport
-	N string
-}
-
-type LogInput struct {
-	message.Decoder
-	N string
-}
-
-func (i LogInput) Do(ctx context.Context, m message.Message) {
-	slog.Info(i.N+" <-READ", "id", m.ID(), "by", m.Method(), "at", m.To(), "from", m.From(), "type", m.Type())
-	i.Decoder.Do(ctx, m)
-}
-
-func (t LogTransport) Subscribe(ctx context.Context, at string, decoder message.Decoder) (exchange.Subscription, error) {
-	slog.Info(t.N+" LISTEN", "at", at, "wide", true)
-	return t.Transport.Subscribe(ctx, at, LogInput{Decoder: decoder, N: t.N})
-}
-
-func (t LogTransport) QueueSubscribe(ctx context.Context, at string, by string, decoder message.Decoder) (exchange.Subscription, error) {
-	slog.Info(t.N+" LISTEN", "at", at)
-	return t.Transport.QueueSubscribe(ctx, at, by, LogInput{Decoder: decoder, N: t.N})
-}
-
-func (t LogTransport) Publish(ctx context.Context, m message.Message, encoder message.Encoder) error {
-	out := slog.With("id", m.ID(), "by", m.Method(), "at", m.From(), "to", m.To(), "type", m.Type())
-	err := t.Transport.Publish(ctx, m, encoder)
-	if err != nil {
-		out = out.With("error", err)
-	}
-	out.Info(t.N + " SEND->")
-	return err
-}
-
-func (t LogTransport) Unsubscribe(topic exchange.Topic) error {
-	switch topic.Wide() {
-	case true:
-		slog.Info(t.N+" FINISH", "at", topic, "wide", topic.Wide())
-	default:
-		slog.Info(t.N+" FINISH", "at", topic)
-	}
-	return t.Transport.Unsubscribe(topic)
-}
 
 type Suit struct {
 	url      string
@@ -178,7 +132,7 @@ func (s *Suit) NewService(i int, name string, topic ...string) (Broker, error) {
 		}
 		return message.NewBody(Empty{Number: i}), nil
 	})
-	b.UseTransport(LogTransport{Transport: b.Transport(), N: fmt.Sprint(i)})
+	b.UseTransport(log.Transport{Transport: b.Transport()})
 	err = b.Listen(s.ctx, name, topic...)
 	if err != nil {
 		return nil, err
@@ -204,7 +158,7 @@ func (s *Suit) TestQuery(t *testing.T) {
 		WithTo("service").
 		WithFrom("client").
 		WithMethod("echo").
-		WithBody(message.NewBody(Echo{Text: "Alice"})), exchange.WithMaxFrom())
+		WithBody(message.NewBody(Echo{Text: "Alice"})), exchange.WithMinFrom(), exchange.WithMaxFrom())
 	require.NoError(t, err)
 	m := <-s.messages
 	err = m.Decode(&e)

@@ -6,7 +6,6 @@ import (
 	"github.com/pshvedko/nocopy/repository"
 	"github.com/pshvedko/nocopy/storage"
 	"os"
-	"sync"
 	"sync/atomic"
 )
 
@@ -15,7 +14,6 @@ type Chain struct {
 	storage.Storage
 	repository.Repository
 	atomic.Bool
-	sync.WaitGroup
 }
 
 func (s *Chain) Run(ctx context.Context, base, file, pipe string) error {
@@ -47,9 +45,6 @@ func (s *Chain) Run(ctx context.Context, base, file, pipe string) error {
 		return err
 	}
 	defer s.Repository.Shutdown()
-	defer s.WaitGroup.Wait()
-	s.WaitGroup.Add(1)
-	defer s.WaitGroup.Done()
 	<-ctx.Done()
 	s.Broker.Finish()
 	return nil

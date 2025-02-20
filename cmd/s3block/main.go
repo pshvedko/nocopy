@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/pshvedko/nocopy/internal/log"
 	"github.com/pshvedko/nocopy/service"
 )
 
@@ -20,6 +22,7 @@ func main() {
 	var fileFlag string
 	var pipeFlag string
 	var sizeFlag int64
+	var levelFlag slog.Level
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
@@ -28,6 +31,9 @@ func main() {
 	c := &cobra.Command{
 		Use:  "s3block",
 		Long: "S3 (not yet) compatible copy less proxy service",
+		PersistentPreRun: func(*cobra.Command, []string) {
+			slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: levelFlag})))
+		},
 		PreRun: func(*cobra.Command, []string) {
 			context.AfterFunc(ctx, s.Stop)
 		},
@@ -42,6 +48,7 @@ func main() {
 		},
 	}
 
+	c.Flags().VarP(log.NewLogLevel(&levelFlag, slog.LevelInfo), "level", "l", "log level")
 	c.Flags().StringVar(&addrFlag, "addr", "", "bind address")
 	c.Flags().StringVar(&portFlag, "port", "8080", "bind port")
 	c.Flags().StringVar(&baseFlag, "base", "postgres://postgres:postgres@postgres:5432/nocopy", "data base")

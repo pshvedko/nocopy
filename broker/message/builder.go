@@ -2,161 +2,226 @@ package message
 
 import (
 	"encoding/json"
-	"errors"
-	"reflect"
 
 	"github.com/google/uuid"
 )
 
 type Builder interface {
 	Message
-	WithMessage(Message) Builder
 	WithID(uuid.UUID) Builder
-	WithError(error) Builder
-	WithBody(any) Builder
 	WithFrom(string) Builder
 	WithTo(string) Builder
-	WithInvert() Builder
 	WithMethod(string) Builder
-	WithPath(...string) Builder
-	WithStraight(bool) Builder
+	WithError(error) Builder
+	WithBody(any) Builder
+	Answer() Message
+	Forward(string) Message
+	Backward() Message
+	Build() Message
 }
 
 type Wrapper struct {
 	Message
 }
 
-type Straight struct {
+func (w Wrapper) Build() Message {
+	return w.Message
+}
+
+type WrapperBackward struct {
 	Message
-	of bool
+	n int
 }
 
-func (m Straight) OF() [3]string {
-	of := m.Message.OF()
-	if m.of {
-		of[0] = "F"
-	} else {
-		of[0] = "R"
-	}
-	return of
+func (w WrapperBackward) From() string {
+	return w.Message.To()
 }
 
-func (m Wrapper) WithStraight(of bool) Builder {
-	return Wrapper{Message: Straight{Message: m, of: of}}
+func (w WrapperBackward) Return() []string {
+	return w.Message.Return()[:w.n]
 }
 
-func (m Wrapper) WithMessage(copy Message) Builder { return Wrapper{Message: copy} }
-
-type Path struct {
-	Message
-	re []string
+func (w WrapperBackward) To() string {
+	return w.Message.Return()[w.n]
 }
 
-func (m Path) RE() []string { return m.re }
+func (w Wrapper) Backward() Message { return WrapperBackward{Message: w, n: len(w.Return()) - 1} }
 
-func (m Wrapper) WithPath(re ...string) Builder { return Wrapper{Message: Path{Message: m, re: re}} }
-
-type Method struct {
-	Message
-	by string
-}
-
-func (m Method) BY() string { return m.by }
-
-func (m Wrapper) WithMethod(by string) Builder { return Wrapper{Message: Method{Message: m, by: by}} }
-
-type Id struct {
-	Message
-	id uuid.UUID
-}
-
-func (m Wrapper) WithID(id uuid.UUID) Builder { return Wrapper{Message: Id{Message: m, id: id}} }
-
-type Invert struct {
-	Message
-}
-
-func (m Invert) OF() [3]string {
-	of := m.Message.OF()
-	if of[0] == "R" {
-		of[0] = "F"
-	} else {
-		of[0] = "R"
-	}
-	return of
-}
-
-func (m Wrapper) WithInvert() Builder { return Wrapper{Message: Invert{Message: m}} }
-
-type To struct {
+type WrapperForward struct {
 	Message
 	to string
 }
 
-func (m To) TO() string { return m.to }
+func (w WrapperForward) From() string {
+	return w.Message.To()
+}
 
-func (m Wrapper) WithTo(to string) Builder { return Wrapper{Message: To{Message: m, to: to}} }
+func (w WrapperForward) Return() []string {
+	return append(w.Message.Return(), w.Message.From())
+}
 
-type From struct {
+func (w WrapperForward) To() string {
+	return w.to
+}
+
+func (w WrapperForward) Type() Type {
+	return Query
+}
+
+func (w Wrapper) Forward(to string) Message { return WrapperForward{Message: w, to: to} }
+
+type WrapperAnswer struct {
+	Message
+}
+
+func (w WrapperAnswer) From() string {
+	return w.Message.To()
+}
+
+func (w WrapperAnswer) To() string {
+	return w.Message.From()
+}
+
+func (w WrapperAnswer) Type() Type {
+	return Answer | w.Message.Type()&Answer<<1&w.Message.Type()
+}
+
+func (w Wrapper) Answer() Message { return WrapperAnswer{Message: w} }
+
+type WrapperWithType struct {
+	Message
+	t Type
+}
+
+func (w WrapperWithType) Type() Type {
+	return w.t
+}
+
+func (w Wrapper) WithType(t Type) Builder {
+	return Wrapper{Message: WrapperWithType{Message: w, t: t}}
+}
+
+type WrapperWithID struct {
+	Message
+	id uuid.UUID
+}
+
+func (w WrapperWithID) ID() uuid.UUID {
+	return w.id
+}
+
+func (w Wrapper) WithID(id uuid.UUID) Builder {
+	return Wrapper{Message: WrapperWithID{Message: w, id: id}}
+}
+
+type WrapperWithBody struct {
+	Message
+	body Body
+}
+
+func (w WrapperWithBody) Encode() ([]byte, error) {
+	return w.body.Encode()
+}
+
+func (w WrapperWithBody) Decode(v any) error {
+	b, err := w.body.Encode()
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(b, v)
+}
+
+func (w Wrapper) WithBody(body any) Builder {
+	switch b := body.(type) {
+	case nil:
+		return w
+	case Body:
+		return Wrapper{Message: WrapperWithBody{Message: w, body: b}}
+	default:
+		return Wrapper{Message: WrapperWithBody{Message: w, body: NewBody(b)}}
+	}
+}
+
+type WrapperWithFrom struct {
 	Message
 	from string
 }
 
-func (m From) AT() string { return m.from }
+func (w WrapperWithFrom) From() string {
+	return w.from
+}
 
-func (m Wrapper) WithFrom(from string) Builder { return Wrapper{Message: From{Message: m, from: from}} }
+func (w Wrapper) WithFrom(from string) Builder {
+	return Wrapper{Message: WrapperWithFrom{Message: w, from: from}}
+}
 
-type Error struct {
+type WrapperWithTo struct {
 	Message
-	err string
+	to string
 }
 
-func (m Error) OF() [3]string {
-	of := m.Message.OF()
-	of[1] = m.err
-	return of
+func (w WrapperWithTo) To() string {
+	return w.to
 }
 
-func (m Wrapper) WithError(err error) Builder {
-	return Wrapper{Message: Error{Message: m, err: err.Error()}}
+func (w Wrapper) WithTo(to string) Builder {
+	return Wrapper{Message: WrapperWithTo{Message: w, to: to}}
 }
 
-type Body struct {
+type WrapperWithMethod struct {
 	Message
-	body any
+	method string
 }
 
-func (m Body) Unmarshal(to any) error {
-	of := m.OF()
-	if len(of[1]) > 0 {
-		return errors.New(of[1])
+func (w WrapperWithMethod) Method() string {
+	return w.method
+}
+
+func (w Wrapper) WithMethod(method string) Builder {
+	return Wrapper{Message: WrapperWithMethod{Message: w, method: method}}
+}
+
+type WrapperWithError struct {
+	Message
+	err Error
+}
+
+func (w WrapperWithError) Type() Type {
+	return Failure
+}
+
+func (w WrapperWithError) Encode() ([]byte, error) {
+	return w.err.Encode()
+}
+
+func (w WrapperWithError) Decode(any) error {
+	return w.err
+}
+
+func (w Wrapper) WithError(err error) Builder {
+	switch e := err.(type) {
+	case nil:
+		return w
+	case Error:
+		return Wrapper{Message: WrapperWithError{Message: w, err: e}}
+	default:
+		return Wrapper{Message: WrapperWithError{Message: w, err: NewError(500, e)}}
 	}
-	reflect.ValueOf(to).Elem().Set(reflect.ValueOf(m.body)) // TODO
-	return nil
 }
 
-func (m Body) Marshal() ([]byte, error) { return json.Marshal(m.body) }
+func NewMessage(m Message) Builder {
+	return Wrapper{Message: m}
+}
 
-func (m Wrapper) WithBody(body any) Builder { return Wrapper{Message: Body{Message: m, body: body}} }
+type BuilderWithType interface {
+	Builder
+	WithType(Type) Builder
+}
 
-type Empty struct{}
+func NewWithID(id uuid.UUID) BuilderWithType {
+	return Wrapper{Message: Empty{id: id}}
+}
 
-func (m Empty) ID() uuid.UUID { return uuid.UUID{} }
-
-func (m Empty) RE() []string { return nil }
-
-func (m Empty) AT() string { return "" }
-
-func (m Empty) OF() [3]string { return [3]string{"F"} }
-
-func (m Empty) BY() string { return "" }
-
-func (m Empty) TO() string { return "" }
-
-func (m Empty) Marshal() ([]byte, error) { return nil, nil }
-
-func (m Empty) Unmarshal(any) error { return nil }
-
-func New() Builder {
-	return Wrapper{Message: Empty{}}
+func New() BuilderWithType {
+	return NewWithID(uuid.New())
 }

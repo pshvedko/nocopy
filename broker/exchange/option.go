@@ -3,7 +3,7 @@ package exchange
 import (
 	"github.com/google/uuid"
 
-	"github.com/pshvedko/nocopy/broker2/message"
+	"github.com/pshvedko/nocopy/broker/message"
 )
 
 type Option interface {

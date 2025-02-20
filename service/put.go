@@ -9,12 +9,13 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/pshvedko/nocopy/api"
-	"github.com/pshvedko/nocopy/service/io"
+	"github.com/pshvedko/nocopy/broker/message"
+	"github.com/pshvedko/nocopy/internal/io"
 )
 
 func (s *Block) Put(w http.ResponseWriter, r *http.Request) {
-	s.Add(1)
-	defer s.Done()
+	s.Request.Add(1)
+	defer s.Request.Done()
 	var blocks []uuid.UUID
 	var hashes [][]byte
 	var sizes []int64
@@ -36,12 +37,12 @@ func (s *Block) Put(w http.ResponseWriter, r *http.Request) {
 			chains, err = s.Repository.Update(r.Context(), file, blocks, hashes, sizes)
 			if err == nil {
 				w.WriteHeader(http.StatusCreated)
-				_, err = s.Broker.Message(r.Context(), "proxy", "file", api.File{
+				_, err = s.Broker.Message(r.Context(), "proxy", "file", message.NewBody(api.File{
 					Chains: chains,
 					Blocks: blocks,
 					Hashes: hashes,
 					Sizes:  sizes,
-				})
+				}))
 				if err == nil {
 					return
 				}

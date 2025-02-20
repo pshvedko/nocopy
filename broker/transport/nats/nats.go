@@ -6,8 +6,8 @@ import (
 
 	"github.com/nats-io/nats.go"
 
-	"github.com/pshvedko/nocopy/broker2/exchange"
-	"github.com/pshvedko/nocopy/broker2/message"
+	"github.com/pshvedko/nocopy/broker/exchange"
+	"github.com/pshvedko/nocopy/broker/message"
 )
 
 type Transport struct {

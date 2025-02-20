@@ -1,193 +1,301 @@
 package message
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 
 	"github.com/google/uuid"
 )
 
+var (
+	ErrRedundantMessage = errors.New("redundant message")
+	ErrIllegalType      = errors.New("illegal type")
+	ErrNoPayload        = errors.New("no payload")
+	ErrEmpty            = errors.New("empty")
+	ErrIllegalID        = errors.New("illegal id")
+)
+
+type Type int
+
+const (
+	Query Type = iota
+	Answer
+	Request
+	Failure
+	Broadcast
+)
+
 type Address interface {
 	ID() uuid.UUID
-	RE() []string
-	AT() string
-}
-
-type Header interface {
-	Address
-	OF() [3]string
-	BY() string
-	TO() string
-}
-
-func Marshal(a any) ([]byte, error) {
-	switch x := a.(type) {
-	case nil:
-		return nil, nil
-	case Marshaler:
-		return x.Marshal()
-	case json.Marshaler:
-		return x.MarshalJSON()
-	default:
-		return json.Marshal(a)
-	}
-}
-
-func Unmarshal(b []byte, a any) error {
-	switch x := a.(type) {
-	case Unmarshaler:
-		return x.Unmarshal(b)
-	case json.Unmarshaler:
-		return x.UnmarshalJSON(b)
-	default:
-		return json.Unmarshal(b, a)
-	}
+	From() string
+	Return() []string
+	To() string
+	Type() Type
+	Method() string
 }
 
 type Message interface {
-	Header
-	Marshaler
-	Unmarshal(any) error
-}
-
-type Unmarshaler interface {
-	Unmarshal([]byte) error
-}
-
-type Marshaler interface {
-	Marshal() ([]byte, error)
-}
-
-var ErrOption = errors.New("invalid query option")
-
-type Option struct {
-	id func() uuid.UUID
-	re func() []string
-	at func() string
-}
-
-func (o Option) ID() uuid.UUID {
-	return o.id()
-}
-
-func (o Option) RE() []string {
-	return o.re()
-}
-
-func (o Option) AT() string {
-	return o.at()
-}
-
-func MakeHeader(m Message, oo ...any) (Header, error) {
-	if len(oo) == 0 {
-		return m, nil
-	}
-	b := New().WithMessage(m)
-	for _, o := range oo {
-		switch x := o.(type) {
-		case error:
-			b = b.WithError(x)
-		case bool:
-			b = b.WithStraight(x)
-		case [16]byte:
-			b = b.WithID(x)
-		case []string:
-			b = b.WithPath(x...)
-		case string:
-			b = b.WithFrom(x)
-		case Address:
-			b = b.WithID(x.ID()).WithFrom(x.AT()).WithPath(x.RE()...)
-		default:
-			return nil, ErrOption
-		}
-	}
-	return b, nil
-}
-
-func MakeAddress(at string, oo []any) (Address, error) {
-	var o Option
-	var err error
-	for _, v := range append([]any{at, uuid.New, []string(nil)}, oo...) {
-		switch x := v.(type) {
-		case func() uuid.UUID:
-			o.id = x
-		case uuid.UUID:
-			o.id = func() uuid.UUID { return x }
-		case func() []string:
-			o.re = x
-		case []string:
-			o.re = func() []string { return x }
-		case func() string:
-			o.at = x
-		case string:
-			o.at = func() string { return x }
-		case Address:
-			o.id = x.ID
-			o.re = x.RE
-			o.at = x.AT
-		default:
-			return nil, ErrOption
-		}
-	}
-	return o, err
-}
-
-type Toward struct {
-	To, By string
 	Address
+	Body
+	Decode(any) error
 }
 
-func (h Toward) OF() [3]string {
-	return [3]string{"F"}
+type DecodeFunc func(context.Context, []byte) (context.Context, error)
+
+func (f DecodeFunc) Decode(ctx context.Context, bytes []byte) (context.Context, error) {
+	return f(ctx, bytes)
 }
 
-func (h Toward) BY() string {
-	return h.By
+type EncodeFunc func(context.Context) ([]byte, error)
+
+func (f EncodeFunc) Encode(ctx context.Context) ([]byte, error) {
+	return f(ctx)
 }
 
-func (h Toward) TO() string {
-	return h.To
+type FormatFunc struct {
+	DecodeFunc
+	EncodeFunc
 }
 
-type Respond struct {
-	Header
+type Middleware interface {
+	Decode(ctx context.Context, bytes []byte) (context.Context, error)
+	Encode(ctx context.Context) ([]byte, error)
 }
 
-func (h Respond) OF() [3]string {
-	ff := h.Header.OF()
-	ff[0] = "R"
-	return ff
+type Mediator interface {
+	Middleware(string) []Middleware
 }
 
-type Forward struct {
-	To string
-	Message
+type Encoder interface {
+	Encode(context.Context, Message) ([]byte, error)
 }
 
-func (h Forward) TO() string {
-	return h.To
+type Decoder interface {
+	Decode(context.Context, []byte) (context.Context, Message, error)
+	Processor
 }
 
-func (h Forward) RE() []string {
-	return append(h.Message.RE(), h.Message.TO())
+type Processor interface {
+	Do(context.Context, Message)
 }
 
-type Backward struct {
-	Message
+type Envelope struct {
+	ID     uuid.UUID `json:"id,omitempty"`
+	From   string    `json:"from,omitempty"`
+	Return []string  `json:"return,omitempty"`
+	To     string    `json:"to,omitempty"`
+	Type   Type      `json:"type,omitempty"`
+	Method string    `json:"method,omitempty"`
 }
 
-func (h Backward) TO() string {
-	re := h.Message.RE()
-	if n := len(re); n > 0 {
-		return re[n-1]
+type Error struct {
+	Code int    `json:"code,omitempty"`
+	Text string `json:"text,omitempty"`
+}
+
+func (e Error) Encode() ([]byte, error) {
+	return json.Marshal(e)
+}
+
+func (e Error) Error() string {
+	return e.Text
+}
+
+type Raw struct {
+	Err      Error
+	Envelope Envelope
+	Body     json.RawMessage
+}
+
+func (r Raw) Decode(v any) error {
+	if r.Envelope.Type == Failure {
+		return r.Err
 	}
-	return ""
+	return json.Unmarshal(r.Body, v)
 }
 
-func (h Backward) RE() []string {
-	re := h.Message.RE()
-	if n := len(re); n > 0 {
-		return re[:n-1]
+func (r Raw) Encode() ([]byte, error) {
+	if r.Envelope.Type == Failure {
+		return r.Err.Encode()
 	}
-	return nil
+	return r.Body.MarshalJSON()
 }
+
+func (r Raw) ID() uuid.UUID {
+	return r.Envelope.ID
+}
+
+func (r Raw) From() string {
+	return r.Envelope.From
+}
+
+func (r Raw) Return() []string {
+	return r.Envelope.Return
+}
+
+func (r Raw) To() string {
+	return r.Envelope.To
+}
+
+func (r Raw) Type() Type {
+	return r.Envelope.Type
+}
+
+func (r Raw) Method() string {
+	return r.Envelope.Method
+}
+
+type UnmarshalFunc func([]byte) error
+
+func (f UnmarshalFunc) UnmarshalJSON(bytes []byte) error { return f(bytes) }
+
+func Decode(ctx context.Context, bytes []byte, mediator Mediator) (context.Context, Message, error) {
+	var i int
+	var u int
+	var v interface{}
+	var r Raw
+	var uu []UnmarshalFunc
+
+	uu = append(uu, func(bytes []byte) error {
+		v = &r.Err
+		i++
+		err := json.Unmarshal(bytes, &r.Envelope)
+		if err != nil {
+			return err
+		}
+		switch r.Envelope.Type {
+		case Query, Request, Broadcast:
+			for _, w := range mediator.Middleware(r.Envelope.Method) {
+				uu = append(uu,
+					func(bytes []byte) (err error) {
+						i++
+						ctx, err = w.Decode(ctx, bytes)
+						return
+					},
+				)
+				u++
+			}
+			fallthrough
+		case Answer:
+			v = &r.Body
+			fallthrough
+		case Failure:
+			uu = append(uu,
+				func(bytes []byte) error {
+					i++
+					return json.Unmarshal(bytes, v)
+				},
+				func(bytes []byte) error {
+					i++
+					return ErrRedundantMessage
+				},
+			)
+		default:
+			return ErrIllegalType
+		}
+		return nil
+	})
+
+	err := json.Unmarshal(bytes, &uu)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	switch i {
+	case 0:
+		return nil, nil, ErrEmpty
+	case 1 + u:
+		return nil, nil, ErrNoPayload
+	}
+
+	return ctx, r, nil
+}
+
+type MarshalFunc func() ([]byte, error)
+
+func (f MarshalFunc) MarshalJSON() ([]byte, error) { return f() }
+
+func Encode(ctx context.Context, m Message, mediator Mediator) ([]byte, error) {
+	if m.ID() == uuid.Nil {
+		return nil, ErrEmpty
+	}
+	ww := mediator.Middleware(m.Method())
+	mm := append(make([]MarshalFunc, 0, 2+len(ww)), func() ([]byte, error) {
+		return json.Marshal(Envelope{
+			ID:     m.ID(),
+			From:   m.From(),
+			Return: m.Return(),
+			To:     m.To(),
+			Type:   m.Type(),
+			Method: m.Method(),
+		})
+	})
+
+	for _, w := range ww {
+		mm = append(mm, func() ([]byte, error) {
+			return w.Encode(ctx)
+		})
+	}
+
+	mm = append(mm, func() ([]byte, error) {
+		return m.Encode()
+	})
+
+	bytes, err := json.Marshal(mm)
+	if err != nil {
+		return nil, err
+	}
+
+	return bytes, nil
+}
+
+type Body interface {
+	Encode() ([]byte, error)
+}
+
+type Content[T any] struct {
+	a T
+}
+
+func (c Content[T]) Encode() ([]byte, error) {
+	return json.Marshal(c.a)
+}
+
+func NewBody[T any](a T) Body {
+	return Content[T]{
+		a: a,
+	}
+}
+
+func NewErrorString(code int, text string) Error {
+	return Error{
+		Code: code,
+		Text: text,
+	}
+}
+
+func NewError(code int, err error) Error { return NewErrorString(code, err.Error()) }
+
+type HandleFunc func(context.Context, Message) (Body, error)
+type CatchFunc func(context.Context, Message) bool
+
+type Empty struct {
+	id uuid.UUID
+}
+
+func (e Empty) ID() uuid.UUID { return e.id }
+
+func (e Empty) From() string { return "" }
+
+func (e Empty) Return() []string { return []string{} }
+
+func (e Empty) To() string { return "" }
+
+func (e Empty) Type() Type { return 0 }
+
+func (e Empty) Method() string { return "" }
+
+func (e Empty) Encode() ([]byte, error) { return []byte{'n', 'u', 'l', 'l'}, nil }
+
+func (e Empty) Decode(any) error { return nil }
