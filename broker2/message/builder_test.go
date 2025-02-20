@@ -79,3 +79,45 @@ func TestWrapper_Build(t *testing.T) {
 	require.Equal(t, id, m.ID())
 	require.ErrorIs(t, Error{123, "empty"}, m.Decode(struct{}{}))
 }
+
+func TestWrapperAnswer_Type(t *testing.T) {
+	tests := []struct {
+		name    string
+		message Message
+		want    Type
+	}{
+		// TODO: Add test cases.
+		{
+			name:    "",
+			message: New().WithType(Query).Answer(),
+			want:    Answer,
+		},
+		{
+			name:    "",
+			message: New().WithType(Answer).Answer(),
+			want:    Answer,
+		},
+		{
+			name:    "",
+			message: New().WithType(Request).Answer(),
+			want:    Answer,
+		},
+		{
+			name:    "",
+			message: New().WithType(Failure).Answer(),
+			want:    Failure,
+		},
+		{
+			name:    "",
+			message: New().WithType(Broadcast).Answer(),
+			want:    Answer,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.message.Type(); got != tt.want {
+				t.Errorf("Type() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
