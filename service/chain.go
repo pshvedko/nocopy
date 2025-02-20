@@ -2,11 +2,13 @@ package service
 
 import (
 	"context"
-	"github.com/pshvedko/nocopy/broker"
-	"github.com/pshvedko/nocopy/repository"
-	"github.com/pshvedko/nocopy/storage"
 	"os"
 	"sync/atomic"
+
+	"github.com/pshvedko/nocopy/broker"
+	"github.com/pshvedko/nocopy/internal/log"
+	"github.com/pshvedko/nocopy/repository"
+	"github.com/pshvedko/nocopy/storage"
 )
 
 type Chain struct {
@@ -31,6 +33,7 @@ func (s *Chain) Run(ctx context.Context, base, file, pipe string) error {
 	defer s.Broker.Shutdown()
 	s.Broker.Handle("file", s.FileQuery)
 	s.Broker.Handle("head", s.HeadQuery)
+	s.Broker.UseTransport(log.Transport{Transport: s.Broker.Transport()})
 	err = s.Broker.Listen(ctx, "chain", host, "1")
 	if err != nil {
 		return err

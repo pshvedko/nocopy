@@ -13,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 
 	"github.com/pshvedko/nocopy/broker"
+	"github.com/pshvedko/nocopy/internal/log"
 	"github.com/pshvedko/nocopy/repository"
 	"github.com/pshvedko/nocopy/storage"
 )
@@ -52,6 +53,7 @@ func (s *Block) Run(ctx context.Context, addr, port, base, file, pipe string, si
 	}
 	defer s.Broker.Shutdown()
 	s.Broker.Catch("file", s.FileReply)
+	s.Broker.UseTransport(log.Transport{Transport: s.Broker.Transport()})
 	err = s.Broker.Listen(ctx, "block", host, "1")
 	if err != nil {
 		return err
