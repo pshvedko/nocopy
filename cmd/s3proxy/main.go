@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -36,6 +37,10 @@ func main() {
 			return s.Run(ctx, pipeFlag)
 		},
 	}
+
+	var pressureFlag int
+	var delayFlag time.Duration
+
 	t := &cobra.Command{
 		Use:   "echo",
 		Short: "Echo performance",
@@ -43,7 +48,7 @@ func main() {
 			context.AfterFunc(ctx, s.Stop)
 		},
 		RunE: func(*cobra.Command, []string) error {
-			return s.Echo(ctx, concurrencyFlag, quantityFlag, pipeFlag)
+			return s.Echo(ctx, concurrencyFlag, quantityFlag, pressureFlag, delayFlag, pipeFlag)
 		},
 	}
 
@@ -51,6 +56,8 @@ func main() {
 	c.PersistentFlags().StringVar(&pipeFlag, "pipe", "nats://nats", "message broker")
 	t.Flags().IntVarP(&concurrencyFlag, "concurrency", "c", 1, "concurrency")
 	t.Flags().IntVarP(&quantityFlag, "quantity", "n", 1, "quantity")
+	t.Flags().IntVarP(&pressureFlag, "pressure", "p", 64*1024, "pressure")
+	t.Flags().DurationVarP(&delayFlag, "delay", "d", 0, "delay")
 	c.AddCommand(t)
 
 	err := c.Execute()

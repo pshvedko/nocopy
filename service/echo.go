@@ -13,9 +13,7 @@ import (
 	"github.com/pshvedko/nocopy/internal/log"
 )
 
-const maxInFly = 64 * 1024
-
-func (s *Proxy) Echo(ctx context.Context, concurrency, quantity int, pipe string) error {
+func (s *Proxy) Echo(ctx context.Context, concurrency, quantity, size int, delay time.Duration, pipe string) error {
 	if !s.Bool.CompareAndSwap(false, true) {
 		return context.Canceled
 	}
@@ -30,7 +28,7 @@ func (s *Proxy) Echo(ctx context.Context, concurrency, quantity int, pipe string
 	defer s.Broker.Shutdown()
 	s.Broker.UseTransport(log.Transport{Transport: s.Transport()})
 	var w sync.WaitGroup
-	q := make(chan struct{}, maxInFly)
+	q := make(chan struct{}, size)
 	s.Broker.Catch("echo", func(ctx context.Context, m message.Message) bool {
 		<-q
 		w.Done()
@@ -51,7 +49,7 @@ func (s *Proxy) Echo(ctx context.Context, concurrency, quantity int, pipe string
 				w.Add(1)
 				_, err = s.Broker.Message(ctx, "proxy", "echo", message.NewBody(api.Echo{
 					Serial: n,
-					Delay:  0 * time.Second,
+					Delay:  delay,
 				}))
 				if err != nil {
 					<-q
@@ -87,6 +85,9 @@ func (s *Proxy) Echo(ctx context.Context, concurrency, quantity int, pipe string
 		}
 	}
 	close(e)
+	context.AfterFunc(ctx, func() {
+		os.Exit(1)
+	})
 	w.Wait()
 	s.Broker.Finish()
 	since := time.Since(t)
