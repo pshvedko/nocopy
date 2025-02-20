@@ -9,8 +9,6 @@ import (
 )
 
 func (s *Block) Delete(w http.ResponseWriter, r *http.Request) {
-	s.Request.Add(1)
-	defer s.Request.Done()
 	blocks, err := s.Repository.Delete(r.Context(), path.Clean(r.URL.Path))
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)

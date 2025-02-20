@@ -11,8 +11,6 @@ import (
 )
 
 func (s *Block) Head(w http.ResponseWriter, r *http.Request) {
-	s.Request.Add(1)
-	defer s.Request.Done()
 	reply, err := s.Broker.Request(r.Context(), "proxy", "head", message.NewBody(api.Head{Name: path.Clean(r.URL.Path)}))
 	if err == nil {
 		var head api.HeadReply

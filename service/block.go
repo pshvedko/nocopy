@@ -39,9 +39,19 @@ type Block struct {
 	storage.Storage
 	repository.Repository
 	atomic.Bool
-	Request  sync.WaitGroup
 	Boundary Boundary
 	Size     int64
+}
+
+type WaitGroup struct {
+	http.Handler
+	sync.WaitGroup
+}
+
+func (g *WaitGroup) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	g.WaitGroup.Add(1)
+	g.Handler.ServeHTTP(w, r)
+	g.WaitGroup.Done()
 }
 
 func (s *Block) Run(ctx context.Context, addr, port, base, file, pipe string, size int64) error {
@@ -80,12 +90,13 @@ func (s *Block) Run(ctx context.Context, addr, port, base, file, pipe string, si
 	h.Get("/*", s.Get)
 	h.Delete("/*", s.Delete)
 	h.Head("/*", s.Head)
+	w := &WaitGroup{Handler: h}
+	s.Handler = w
 	s.Size = size
-	s.Handler = h
 	s.Addr = net.JoinHostPort(addr, port)
 	s.BaseContext = func(net.Listener) context.Context { return ctx }
 	s.Server.RegisterOnShutdown(s.Broker.Finish)
-	defer s.Request.Wait()
+	defer w.WaitGroup.Wait()
 	return s.Server.ListenAndServe()
 }
 
