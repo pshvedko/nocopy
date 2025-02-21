@@ -41,7 +41,7 @@ func (s *Chain) HeadQuery(ctx context.Context, m message.Message) (message.Body,
 	if err != nil {
 		return nil, err
 	}
-	slog.Warn("head", "name", head.Name)
+	slog.Info("head", "name", head.Name)
 	name, date, length, blocks, sizes, err := s.Repository.Get(ctx, head.Name)
 	if err != nil {
 		return nil, err

@@ -1,15 +1,27 @@
 package api
 
 import (
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 )
 
+type Hash []byte
+
+func (h Hash) String() string {
+	var b strings.Builder
+	for _, c := range h {
+		_, _ = fmt.Fprintf(&b, "%02x", c)
+	}
+	return b.String()
+}
+
 type File struct {
 	Chains []uuid.UUID `json:"chains,omitempty"`
 	Blocks []uuid.UUID `json:"blocks,omitempty"`
-	Hashes [][]byte    `json:"hashes,omitempty"`
+	Hashes []Hash      `json:"hashes,omitempty"`
 	Sizes  []int64     `json:"sizes,omitempty"`
 }
 

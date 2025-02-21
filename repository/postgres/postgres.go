@@ -8,6 +8,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
+
+	"github.com/pshvedko/nocopy/api"
 )
 
 type Repository struct {
@@ -24,12 +26,12 @@ func (r *Repository) Link(ctx context.Context, cid uuid.UUID, bid1 uuid.UUID, bi
 	return
 }
 
-func (r *Repository) Update(ctx context.Context, fid uuid.UUID, blocks []uuid.UUID, hashes [][]byte, sizes []int64) (chains []uuid.UUID, err error) {
+func (r *Repository) Update(ctx context.Context, fid uuid.UUID, blocks []uuid.UUID, hashes []api.Hash, sizes []int64) (chains []uuid.UUID, err error) {
 	err = r.db.SelectContext(ctx, &chains, "select * from block_insert($1, $2, $3, $4)", fid, blocks, hashes, sizes)
 	return
 }
 
-func (r *Repository) Lookup(ctx context.Context, hash []byte, size int64) (blocks []uuid.UUID, err error) {
+func (r *Repository) Lookup(ctx context.Context, hash api.Hash, size int64) (blocks []uuid.UUID, err error) {
 	err = r.db.SelectContext(ctx, &blocks, "select * from block_select($1, $2)", hash, size)
 	return
 }

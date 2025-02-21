@@ -20,7 +20,7 @@ func (s *Block) Delete(w http.ResponseWriter, r *http.Request) {
 			if id == uuid.Nil {
 				continue
 			}
-			slog.Warn("delete", "id", id)
+			slog.Info("delete", "id", id)
 			err = s.Storage.Purge(r.Context(), id.String())
 			if err != nil {
 				slog.Error("delete", "err", err)

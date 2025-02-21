@@ -29,7 +29,7 @@ func (s *Block) Get(w http.ResponseWriter, r *http.Request) {
 	} else if ranges, err = multipart.ParseRange(r.Header.Get("Range"), size); err != nil {
 		w.WriteHeader(http.StatusRequestedRangeNotSatisfiable)
 	} else {
-		slog.Warn("get", "range", ranges)
+		slog.Info("get", "range", ranges)
 		var part []string
 		var status int
 		var length int64
@@ -73,9 +73,9 @@ func (s *Block) Get(w http.ResponseWriter, r *http.Request) {
 			w.Header().Add("Content-Type", mime)
 		}
 		w.WriteHeader(status)
-		slog.Warn("get", "blocks", blocks, "sizes", sizes)
-		slog.Warn("get", "offsets", offsets)
-		slog.Warn("get", "lengths", lengths)
+		slog.Info("get", "blocks", blocks, "sizes", sizes)
+		slog.Info("get", "offsets", offsets)
+		slog.Info("get", "lengths", lengths)
 		var m int64
 		for i, id := range blocks {
 			err = func() (err error) {
@@ -112,7 +112,7 @@ func (s *Block) Get(w http.ResponseWriter, r *http.Request) {
 						m = ranges[0].Length
 						ranges = ranges[1:]
 					}
-					slog.Warn("get", "id", id, "offset", offsets[i][j]-z, "length", lengths[i][j])
+					slog.Info("get", "id", id, "offset", offsets[i][j]-z, "length", lengths[i][j])
 					var n int64
 					n, err = io.CopyRange(w, body, offsets[i][j]-z, lengths[i][j])
 					if err != nil {

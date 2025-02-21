@@ -64,7 +64,7 @@ func (s *Proxy) Echo(ctx context.Context, concurrency, quantity, size int, delay
 	for i := 0; i < quantity && concurrency > 0; i++ {
 		select {
 		case <-ctx.Done():
-			slog.Warn("echo", "err", ctx.Err())
+			slog.Error("echo", "err", ctx.Err())
 			quantity = i
 		default:
 			select {

@@ -17,7 +17,7 @@ type Input struct {
 }
 
 func (i Input) Do(ctx context.Context, m message.Message) {
-	slog.Debug("<-READ", "id", m.ID(), "by", m.Method(), "at", m.To(), "from", m.From(), "type", m.Type())
+	slog.Debug("READ", "id", m.ID(), "by", m.Method(), "at", m.To(), "from", m.From(), "type", m.Type())
 	i.Decoder.Do(ctx, m)
 }
 
@@ -37,7 +37,7 @@ func (t Transport) Publish(ctx context.Context, m message.Message, encoder messa
 	if err != nil {
 		out = out.With("error", err)
 	}
-	out.Debug("SEND->")
+	out.Debug("SEND")
 	return err
 }
 func (t Transport) Unsubscribe(topic exchange.Topic) error {

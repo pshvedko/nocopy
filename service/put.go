@@ -15,7 +15,7 @@ import (
 
 func (s *Block) Put(w http.ResponseWriter, r *http.Request) {
 	var blocks []uuid.UUID
-	var hashes [][]byte
+	var hashes []api.Hash
 	var sizes []int64
 	file, err := s.Repository.Put(r.Context(), path.Clean(r.URL.Path))
 	for err == nil {
