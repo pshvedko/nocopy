@@ -220,7 +220,12 @@ func Encode(ctx context.Context, m Message, mediator Mediator) ([]byte, error) {
 	if m.ID() == uuid.Nil {
 		return nil, ErrEmpty
 	}
-	ww := mediator.Middleware(m.Method())
+
+	var ww []Middleware
+	if m.Type()&Answer == Query {
+		ww = mediator.Middleware(m.Method())
+	}
+
 	mm := append(make([]MarshalFunc, 0, 2+len(ww)), func() ([]byte, error) {
 		return json.Marshal(Envelope{
 			ID:     m.ID(),
@@ -242,12 +247,7 @@ func Encode(ctx context.Context, m Message, mediator Mediator) ([]byte, error) {
 		return m.Encode()
 	})
 
-	bytes, err := json.Marshal(mm)
-	if err != nil {
-		return nil, err
-	}
-
-	return bytes, nil
+	return json.Marshal(mm)
 }
 
 type Body interface {

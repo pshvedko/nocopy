@@ -22,10 +22,14 @@ type Suit struct {
 }
 
 func TestExchange(t *testing.T) {
+	ur1 := os.Getenv("TEST_NATS")
+	if ur1 == "" {
+		t.SkipNow()
+	}
 	ctx, cancel := context.WithTimeout(context.TODO(), 1*time.Minute)
 	defer cancel()
 	s := Suit{
-		url:      "nats://nats",
+		url:      ur1,
 		ctx:      ctx,
 		messages: make(chan message.Message, 1),
 	}
@@ -149,6 +153,7 @@ func (s *Suit) TestQuery(t *testing.T) {
 	b.Catch("empty", s.Message)
 	b.Catch("error", s.Message)
 	b.Catch("number", s.Message)
+	b.UseTransport(log.Transport{Transport: b.Transport()})
 	err = b.Listen(s.ctx, "client", "zero", "zero")
 	require.NoError(t, err)
 	defer b.Finish()

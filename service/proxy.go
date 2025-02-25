@@ -32,6 +32,7 @@ func (s *Proxy) Run(ctx context.Context, pipe string) error {
 	s.Broker.Handle("head", s.HeadQuery)
 	s.Broker.Catch("head", s.HeadReply)
 	s.Broker.Handle("echo", s.EchoQuery)
+	s.Broker.UseMiddleware(Auth{})
 	s.Broker.UseTransport(log.Transport{Transport: s.Broker.Transport()})
 	err = s.Broker.Listen(ctx, "proxy", host, "1")
 	if err != nil {

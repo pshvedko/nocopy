@@ -16,6 +16,14 @@ type Input struct {
 	message.Decoder
 }
 
+func (i Input) Decode(ctx context.Context, bytes []byte) (context.Context, message.Message, error) {
+	ctx, m, err := i.Decoder.Decode(ctx, bytes)
+	if err != nil {
+		slog.Error("READ", "error", err)
+	}
+	return ctx, m, err
+}
+
 func (i Input) Do(ctx context.Context, m message.Message) {
 	slog.Debug("READ", "id", m.ID(), "by", m.Method(), "at", m.To(), "from", m.From(), "type", m.Type())
 	i.Decoder.Do(ctx, m)

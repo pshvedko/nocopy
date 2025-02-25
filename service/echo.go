@@ -26,6 +26,7 @@ func (s *Proxy) Echo(ctx context.Context, concurrency, quantity, size int, delay
 		return err
 	}
 	defer s.Broker.Shutdown()
+	s.Broker.UseMiddleware(Auth{})
 	s.Broker.UseTransport(log.Transport{Transport: s.Transport()})
 	var w sync.WaitGroup
 	q := make(chan struct{}, size)
