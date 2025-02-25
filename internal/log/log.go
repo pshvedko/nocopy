@@ -45,6 +45,7 @@ type Handler struct {
 	w io.Writer
 	l slog.Level
 	a Attrs
+	g []string // FIXME
 }
 
 func (h Handler) Enabled(_ context.Context, l slog.Level) bool {
@@ -72,7 +73,7 @@ func (h Handler) WithAttrs(a []slog.Attr) slog.Handler {
 }
 
 func (h Handler) WithGroup(g string) slog.Handler {
-	h.a = []slog.Attr{{Key: g, Value: slog.GroupValue(h.a...)}}
+	h.g = append(h.g, g)
 	return h
 }
 
@@ -83,6 +84,7 @@ func NewHandler(w io.Writer, l slog.Level) Handler {
 		m: &sync.Mutex{},
 	}
 }
+
 func NewLogger(w io.Writer, l slog.Level) *slog.Logger {
 	return slog.New(NewHandler(w, l))
 }

@@ -25,7 +25,7 @@ func (i Input) Decode(ctx context.Context, bytes []byte) (context.Context, messa
 }
 
 func (i Input) Do(ctx context.Context, m message.Message) {
-	slog.Debug("READ", "id", m.ID(), "by", m.Method(), "at", m.To(), "from", m.From(), "type", m.Type())
+	slog.Debug("READ", "id", m.ID(), "by", m.Method(), "at", m.To(), "from", m.From(), "type", m.Type(), "return", m.Return())
 	i.Decoder.Do(ctx, m)
 }
 
@@ -40,7 +40,7 @@ func (t Transport) QueueSubscribe(ctx context.Context, at string, by string, dec
 }
 
 func (t Transport) Publish(ctx context.Context, m message.Message, encoder message.Encoder) error {
-	out := slog.With("id", m.ID(), "by", m.Method(), "at", m.From(), "to", m.To(), "type", m.Type())
+	out := slog.With("id", m.ID(), "by", m.Method(), "at", m.From(), "to", m.To(), "type", m.Type(), "return", m.Return())
 	err := t.Transport.Publish(ctx, m, encoder)
 	if err != nil {
 		out = out.With("error", err)
