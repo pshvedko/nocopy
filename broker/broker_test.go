@@ -3,6 +3,7 @@ package broker
 import (
 	"context"
 	"github.com/pshvedko/nocopy/internal/log"
+	"log/slog"
 	"os"
 	"sync"
 	"testing"
@@ -21,6 +22,19 @@ type Suit struct {
 	group    sync.WaitGroup
 }
 
+type L struct {
+	t testing.TB
+}
+
+func (w L) Write(p []byte) (n int, err error) {
+	w.t.Logf("%s", p)
+	return 0, err
+}
+
+func NewLogger(t *testing.T) *slog.Logger {
+	return slog.New(slog.NewTextHandler(L{t: t}, &slog.HandlerOptions{Level: slog.LevelDebug}))
+}
+
 func TestExchange(t *testing.T) {
 	ur1 := os.Getenv("TEST_NATS")
 	if ur1 == "" {
@@ -33,6 +47,7 @@ func TestExchange(t *testing.T) {
 		ctx:      ctx,
 		messages: make(chan message.Message, 1),
 	}
+	slog.SetDefault(NewLogger(t))
 	t.Run("Service", s.TestService)
 }
 

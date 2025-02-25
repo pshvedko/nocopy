@@ -48,6 +48,7 @@ func (t Transport) Publish(ctx context.Context, m message.Message, encoder messa
 	out.Debug("SEND")
 	return err
 }
+
 func (t Transport) Unsubscribe(topic exchange.Topic) error {
 	switch topic.Wide() {
 	case true:
