@@ -70,9 +70,9 @@ func (s *Block) Run(ctx context.Context, addr, port, base, file, pipe string, si
 	}
 	defer s.Repository.Shutdown()
 	h := chi.NewRouter()
-	h.Use(middleware.SetHeader("Server", "NoCopy"))
 	h.Use(middleware.Logger)
 	h.Use(middleware.Recoverer)
+	h.Use(middleware.SetHeader("Server", "NoCopy"))
 	h.Put("/*", s.Put)
 	h.Get("/*", s.Get)
 	h.Delete("/*", s.Delete)
