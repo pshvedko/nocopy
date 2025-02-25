@@ -6,6 +6,7 @@ import (
 	"github.com/spf13/pflag"
 	"io"
 	"log/slog"
+	"sync"
 	"time"
 )
 
@@ -33,6 +34,7 @@ func NewLogLevel(p *slog.Level, v slog.Level) pflag.Value {
 type Attrs []slog.Attr
 
 type Handler struct {
+	m sync.Locker
 	w io.Writer
 	l slog.Level
 	a Attrs
@@ -53,6 +55,8 @@ func (h Handler) Handle(_ context.Context, r slog.Record) error {
 		h.a = append(h.a, a)
 		return true
 	})
+	h.m.Lock()
+	defer h.m.Unlock()
 	_, err := fmt.Fprintf(h.w, "%s [%s] %s%v\n",
 		r.Time.Format(time.DateTime),
 		r.Level,
@@ -67,7 +71,7 @@ func (h Handler) WithAttrs(a []slog.Attr) slog.Handler {
 }
 
 func (h Handler) WithGroup(g string) slog.Handler {
-	h.a = append(h.a[0:0:0], slog.Group(g, slog.GroupValue(h.a...)))
+	h.a = []slog.Attr{{Key: g, Value: slog.GroupValue(h.a...)}}
 	return h
 }
 
@@ -75,6 +79,7 @@ func NewHandler(w io.Writer, l slog.Level) Handler {
 	return Handler{
 		w: w,
 		l: l,
+		m: &sync.Mutex{},
 	}
 }
 func NewLogger(w io.Writer, l slog.Level) *slog.Logger {
