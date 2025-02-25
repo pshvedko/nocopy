@@ -3,11 +3,12 @@ package log
 import (
 	"context"
 	"fmt"
-	"github.com/spf13/pflag"
 	"io"
 	"log/slog"
 	"sync"
 	"time"
+
+	"github.com/spf13/pflag"
 )
 
 type Level struct {
