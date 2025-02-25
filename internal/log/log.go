@@ -34,17 +34,17 @@ func NewLogLevel(p *slog.Level, v slog.Level) pflag.Value {
 
 type Attrs []slog.Attr
 
+func (a Attrs) Format(f fmt.State, _ rune) {
+	for _, v := range a {
+		_, _ = fmt.Fprintf(f, " %s=%s", v.Key, v.Value)
+	}
+}
+
 type Handler struct {
 	m sync.Locker
 	w io.Writer
 	l slog.Level
 	a Attrs
-}
-
-func (a Attrs) Format(f fmt.State, _ rune) {
-	for _, v := range a {
-		_, _ = fmt.Fprintf(f, " %s=%s", v.Key, v.Value)
-	}
 }
 
 func (h Handler) Enabled(_ context.Context, l slog.Level) bool {
