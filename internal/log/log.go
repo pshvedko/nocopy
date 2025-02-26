@@ -3,12 +3,11 @@ package log
 import (
 	"context"
 	"fmt"
+	"github.com/spf13/pflag"
 	"io"
 	"log/slog"
 	"sync"
 	"time"
-
-	"github.com/spf13/pflag"
 )
 
 type Level struct {
@@ -32,38 +31,51 @@ func NewLogLevel(p *slog.Level, v slog.Level) pflag.Value {
 	return Level{p: p}
 }
 
-type Attrs []slog.Attr
-
-func (a Attrs) Format(f fmt.State, _ rune) {
-	for _, v := range a {
-		_, _ = fmt.Fprintf(f, " %s=%s", v.Key, v.Value)
-	}
-}
-
 type Handler struct {
 	m sync.Locker
 	w io.Writer
 	l slog.Level
-	a Attrs
-	g []string // FIXME
+	a []slog.Attr
+	g string
+	h *Handler
 }
 
 func (h Handler) Enabled(_ context.Context, l slog.Level) bool {
 	return h.l <= l
 }
 
-func (h Handler) Handle(_ context.Context, r slog.Record) error {
+func (h Handler) Log(ctx context.Context) (group string, err error) {
+	if h.h != nil {
+		group, err = h.h.Log(ctx)
+	}
+	if h.g > "" {
+		group += h.g
+		group += "."
+	}
+	for _, v := range h.a {
+		_, err = fmt.Fprintf(h.w, " %s%s=%s", group, v.Key, v.Value)
+		if err != nil {
+			return
+		}
+	}
+	return
+}
+
+func (h Handler) Handle(ctx context.Context, r slog.Record) error {
 	r.Attrs(func(a slog.Attr) bool {
 		h.a = append(h.a, a)
 		return true
 	})
 	h.m.Lock()
 	defer h.m.Unlock()
-	_, err := fmt.Fprintf(h.w, "%s [%s] %s%v\n",
+	_, err := fmt.Fprintf(h.w, "%s [%s] %s",
 		r.Time.Format(time.DateTime),
 		r.Level,
-		r.Message,
-		h.a)
+		r.Message)
+	if err != nil {
+		return err
+	}
+	_, err = h.Log(ctx)
 	return err
 }
 
@@ -72,9 +84,15 @@ func (h Handler) WithAttrs(a []slog.Attr) slog.Handler {
 	return h
 }
 
-func (h Handler) WithGroup(g string) slog.Handler {
-	h.g = append(h.g, g)
-	return h
+func (h Handler) WithGroup(group string) slog.Handler {
+	return Handler{
+		m: h.m,
+		w: h.w,
+		l: h.l,
+		a: nil,
+		g: group,
+		h: &h,
+	}
 }
 
 func NewHandler(w io.Writer, l slog.Level) Handler {
