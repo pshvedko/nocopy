@@ -43,8 +43,7 @@ func (o OptionWithTimeout) mustBeInternalExchangeOptionMatherFucker() {}
 
 func WithTimeout(timeout time.Duration) Option { return OptionWithTimeout{timeout: timeout} }
 
-func (e *Exchange) Apply(m message.Message, options ...Option) (Config, message.Message) {
-	c := e.config
+func (e *Exchange) Apply(m message.Message, options ...Option) message.Message {
 	b := message.NewMessage(m)
 
 	for _, option := range options {
@@ -55,9 +54,9 @@ func (e *Exchange) Apply(m message.Message, options ...Option) (Config, message.
 			_, f := e.Topic(o.n)
 			b = b.WithFrom(f)
 		case OptionWithTimeout:
-			c.Timeout = o.timeout
+			e.config.Timeout = o.timeout
 		}
 	}
 
-	return c, b.Build()
+	return b.Build()
 }

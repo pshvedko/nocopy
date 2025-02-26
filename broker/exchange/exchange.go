@@ -47,22 +47,22 @@ type Key struct {
 type Exchange struct {
 	transport Transport
 	topic     [2][]Topic
-	child     internal.Map[context.Context, context.CancelFunc]
-	reply     internal.Map[Key, chan<- message.Message]
+	child     *internal.Map[context.Context, context.CancelFunc]
+	reply     *internal.Map[Key, chan<- message.Message]
 	handler   map[string]message.HandleFunc
 	catcher   map[string]message.CatchFunc
 	functor   map[string][]message.Middleware
 	wrapper   []message.Middleware
 	options   []Option
-	finish    atomic.Bool
+	finish    *atomic.Bool
 	config    Config
 }
 
-func (e *Exchange) Encode(ctx context.Context, m message.Message) ([]byte, error) {
+func (e Exchange) Encode(ctx context.Context, m message.Message) ([]byte, error) {
 	return message.Encode(ctx, m, e)
 }
 
-func (e *Exchange) Decode(ctx context.Context, bytes []byte) (context.Context, message.Message, error) {
+func (e Exchange) Decode(ctx context.Context, bytes []byte) (context.Context, message.Message, error) {
 	return message.Decode(ctx, bytes, e)
 }
 
@@ -89,13 +89,16 @@ func (e *Exchange) Transport() Transport {
 func New(transport Transport) *Exchange {
 	return &Exchange{
 		transport: transport,
+		finish:    &atomic.Bool{},
+		reply:     &internal.Map[Key, chan<- message.Message]{},
+		child:     &internal.Map[context.Context, context.CancelFunc]{},
 		handler:   map[string]message.HandleFunc{},
 		catcher:   map[string]message.CatchFunc{},
 		functor:   map[string][]message.Middleware{},
 	}
 }
 
-func (e *Exchange) Middleware(method string) []message.Middleware {
+func (e Exchange) Middleware(method string) []message.Middleware {
 	return append(e.wrapper, e.functor[method]...)
 }
 
@@ -122,7 +125,7 @@ func (e *Exchange) Message(ctx context.Context, to string, method string, body m
 	return e.Send(ctx, m, options...)
 }
 
-func (e *Exchange) Request(ctx context.Context, to string, method string, body message.Body, options ...Option) (message.Message, error) {
+func (e Exchange) Request(ctx context.Context, to string, method string, body message.Body, options ...Option) (message.Message, error) {
 	c := make(chan message.Message, 1)
 	m := message.New().
 		WithType(message.Request).
@@ -131,7 +134,14 @@ func (e *Exchange) Request(ctx context.Context, to string, method string, body m
 		WithFrom(e.topic[0][0].subject).
 		WithTo(to).
 		Build()
-	o, m := e.Apply(m, options...)
+
+	for _, option := range options {
+		switch option.(type) {
+		case OptionWithID, OptionWithTimeout:
+			m = e.Apply(m, option)
+		}
+	}
+
 	k := Key{
 		id:     m.ID(),
 		method: method,
@@ -141,9 +151,9 @@ func (e *Exchange) Request(ctx context.Context, to string, method string, body m
 		return nil, message.ErrIllegalID
 	}
 
-	if o.Timeout > 0 {
+	if e.config.Timeout > 0 {
 		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, o.Timeout)
+		ctx, cancel = context.WithTimeout(ctx, e.config.Timeout)
 		defer cancel()
 	}
 
@@ -199,13 +209,13 @@ func (e *Exchange) Backward(ctx context.Context, m message.Message, options ...O
 	return e.Send(ctx, m, options...)
 }
 
-func (e *Exchange) Send(ctx context.Context, m message.Message, options ...Option) (uuid.UUID, error) {
+func (e Exchange) Send(ctx context.Context, m message.Message, options ...Option) (uuid.UUID, error) {
 	if m.Type()&message.Answer == message.Answer && ctx.Value(message.Broadcast) != nil {
 		return uuid.UUID{}, nil
 	}
 
-	_, m = e.Apply(m, e.options...)
-	_, m = e.Apply(m, options...)
+	m = e.Apply(m, e.options...)
+	m = e.Apply(m, options...)
 
 	return m.ID(), e.transport.Publish(ctx, m, e)
 }
