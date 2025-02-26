@@ -82,8 +82,8 @@ func (s *Block) Run(ctx context.Context, addr, port, base, file, pipe string, si
 	s.Size = size
 	s.Addr = net.JoinHostPort(addr, port)
 	s.BaseContext = func(net.Listener) context.Context { return ctx }
-	s.Server.RegisterOnShutdown(s.Broker.Finish)
 	defer w.WaitGroup.Wait()
+	defer s.Broker.Finish()
 	return s.Server.ListenAndServe()
 }
 

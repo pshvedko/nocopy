@@ -3,6 +3,8 @@ package exchange
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
+
 	"github.com/google/uuid"
 
 	"github.com/pshvedko/nocopy/broker/message"
@@ -52,6 +54,8 @@ type Exchange struct {
 	functor   map[string][]message.Middleware
 	wrapper   []message.Middleware
 	options   []Option
+	finish    atomic.Bool
+	config    Config
 }
 
 func (e *Exchange) Encode(ctx context.Context, m message.Message) ([]byte, error) {
@@ -127,7 +131,7 @@ func (e *Exchange) Request(ctx context.Context, to string, method string, body m
 		WithFrom(e.topic[0][0].subject).
 		WithTo(to).
 		Build()
-	m = e.Apply(m, options...)
+	o, m := e.Apply(m, options...)
 	k := Key{
 		id:     m.ID(),
 		method: method,
@@ -135,6 +139,12 @@ func (e *Exchange) Request(ctx context.Context, to string, method string, body m
 
 	if !e.reply.Store(k, c) {
 		return nil, message.ErrIllegalID
+	}
+
+	if o.Timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, o.Timeout)
+		defer cancel()
 	}
 
 	_, err := e.Send(ctx, m, options...)
@@ -194,8 +204,8 @@ func (e *Exchange) Send(ctx context.Context, m message.Message, options ...Optio
 		return uuid.UUID{}, nil
 	}
 
-	m = e.Apply(m, e.options...)
-	m = e.Apply(m, options...)
+	_, m = e.Apply(m, e.options...)
+	_, m = e.Apply(m, options...)
 
 	return m.ID(), e.transport.Publish(ctx, m, e)
 }
@@ -285,18 +295,21 @@ func (e *Exchange) Run(ctx context.Context, m message.Message) {
 }
 
 func (e *Exchange) Finish() {
-	for _, topic := range &e.topic {
+	defer e.child.Wait()
+	defer e.reply.Wait()
+	if !e.finish.CompareAndSwap(false, true) {
+		return
+	}
+	for i, topic := range &e.topic {
 		for _, t := range topic {
 			_ = e.transport.Unsubscribe(t)
 		}
+		e.topic[i] = e.topic[i][:0]
 	}
 	e.child.Range(func(ctx context.Context, cancel context.CancelFunc) bool {
 		cancel()
 		return true
 	})
-	e.child.Wait()
-	e.topic[0] = e.topic[0][:0]
-	e.topic[1] = e.topic[1][:0]
 }
 
 func (e *Exchange) Shutdown() {

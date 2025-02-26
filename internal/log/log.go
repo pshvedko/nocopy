@@ -51,6 +51,9 @@ func (h Handler) Enabled(_ context.Context, l slog.Level) bool {
 func (h Handler) Log(ctx context.Context) (group string, err error) {
 	if h.h != nil {
 		group, err = h.h.Log(ctx)
+		if err != nil {
+			return
+		}
 	}
 	if h.g > "" {
 		group += h.g
