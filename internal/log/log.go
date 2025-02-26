@@ -6,6 +6,7 @@ import (
 	"github.com/spf13/pflag"
 	"io"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 )
@@ -19,6 +20,16 @@ func (l Level) String() string {
 }
 
 func (l Level) Set(s string) error {
+	switch strings.ToUpper(s[:1]) {
+	case "E":
+		s = "ERROR"
+	case "W":
+		s = "WARN"
+	case "I":
+		s = "INFO"
+	case "D":
+		s = "DEBUG"
+	}
 	return l.p.UnmarshalText([]byte(s))
 }
 
