@@ -31,13 +31,17 @@ func NewLogLevel(p *slog.Level, v slog.Level) pflag.Value {
 	return Level{p: p}
 }
 
+type Logger interface {
+	Log(context.Context) (string, error)
+}
+
 type Handler struct {
 	m sync.Locker
 	w io.Writer
 	l slog.Level
 	a []slog.Attr
 	g string
-	h *Handler
+	h Logger
 }
 
 func (h Handler) Enabled(_ context.Context, l slog.Level) bool {
@@ -76,6 +80,10 @@ func (h Handler) Handle(ctx context.Context, r slog.Record) error {
 		return err
 	}
 	_, err = h.Log(ctx)
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintln(h.w)
 	return err
 }
 
@@ -89,9 +97,8 @@ func (h Handler) WithGroup(group string) slog.Handler {
 		m: h.m,
 		w: h.w,
 		l: h.l,
-		a: nil,
+		h: h,
 		g: group,
-		h: &h,
 	}
 }
 
