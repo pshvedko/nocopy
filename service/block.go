@@ -20,6 +20,8 @@ import (
 
 type Block struct {
 	http.Server
+	http.Handler
+	sync.WaitGroup
 	broker.Broker
 	storage.Storage
 	repository.Repository
@@ -28,15 +30,10 @@ type Block struct {
 	Size int64
 }
 
-type WaitGroup struct {
-	http.Handler
-	sync.WaitGroup
-}
-
-func (g *WaitGroup) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	g.WaitGroup.Add(1)
-	g.Handler.ServeHTTP(w, r)
-	g.WaitGroup.Done()
+func (s *Block) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	s.WaitGroup.Add(1)
+	s.Handler.ServeHTTP(w, r)
+	s.WaitGroup.Done()
 }
 
 func (s *Block) Run(ctx context.Context, addr, port, base, file, pipe string, size int64) error {
@@ -77,12 +74,12 @@ func (s *Block) Run(ctx context.Context, addr, port, base, file, pipe string, si
 	h.Get("/*", s.Get)
 	h.Delete("/*", s.Delete)
 	h.Head("/*", s.Head)
-	w := &WaitGroup{Handler: h}
-	s.Handler = w
+	s.Handler = h
+	s.Server.Handler = s
 	s.Size = size
 	s.Addr = net.JoinHostPort(addr, port)
 	s.BaseContext = func(net.Listener) context.Context { return ctx }
-	defer w.WaitGroup.Wait()
+	defer s.WaitGroup.Wait()
 	defer s.Broker.Finish()
 	return s.Server.ListenAndServe()
 }
@@ -91,7 +88,9 @@ func (s *Block) Stop() {
 	if s.Bool.CompareAndSwap(false, true) {
 		return
 	}
+	defer s.WaitGroup.Done()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
+	s.WaitGroup.Add(1)
 	_ = s.Server.Shutdown(ctx)
 }
