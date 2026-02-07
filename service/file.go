@@ -88,10 +88,15 @@ func (s *Chain) File(ctx context.Context, chains []uuid.UUID, blocks []uuid.UUID
 					slog.Info("file", "blocks", []uuid.UUID{blocks[i], similarities[j]})
 					err = s.Repository.Link(ctx, chains[0], blocks[i], similarities[j])
 					if err == nil {
-						slog.Info("file", "block", blocks[i])
+						l := slog.With("block", blocks[i])
 						_ = origin.Close()
 						_ = similar.Close()
-						_ = s.Storage.Purge(ctx, blocks[i].String())
+						err = s.Storage.Purge(ctx, blocks[i].String())
+						if err != nil {
+							l.Error("file", "err", err)
+						} else {
+							l.Info("file")
+						}
 						return false
 					}
 					slog.Error("file", "chain", chains[0], "blocks", []uuid.UUID{blocks[i], similarities[j]}, "err", err)
@@ -104,7 +109,7 @@ func (s *Chain) File(ctx context.Context, chains []uuid.UUID, blocks []uuid.UUID
 			_ = origin.Close()
 		}
 	}
-	if chains[1] == uuid.Nil {
+	if len(chains) == 1 {
 		return nil
 	}
 	oldies, err := s.Repository.Break(ctx, chains[1])
@@ -113,11 +118,13 @@ func (s *Chain) File(ctx context.Context, chains []uuid.UUID, blocks []uuid.UUID
 		return err
 	}
 	for i := range oldies {
-		if oldies[i] == uuid.Nil {
-			continue
+		l := slog.With("block", oldies[i], "old", true)
+		err = s.Storage.Purge(ctx, oldies[i].String())
+		if err != nil {
+			l.Error("file", "err", err)
+		} else {
+			l.Info("file")
 		}
-		slog.Info("file", "block", oldies[i])
-		_ = s.Storage.Purge(ctx, oldies[i].String())
 	}
 	return nil
 }

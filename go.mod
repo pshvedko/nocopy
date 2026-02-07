@@ -4,7 +4,6 @@ go 1.21.4
 
 require (
 	github.com/go-chi/chi/v5 v5.0.10
-	github.com/golang/protobuf v1.5.3
 	github.com/google/uuid v1.4.0
 	github.com/gotd/contrib v0.19.0
 	github.com/jackc/pgx/v5 v5.5.1
@@ -14,7 +13,6 @@ require (
 	github.com/spf13/cobra v1.8.0
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.8.3
-	google.golang.org/protobuf v1.30.0
 )
 
 require (

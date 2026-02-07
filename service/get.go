@@ -26,6 +26,7 @@ func (s *Block) Get(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	} else if len(blocks) == 0 {
 		w.WriteHeader(http.StatusNotFound)
+		return
 	} else if ranges, err = multipart.ParseRange(r.Header.Get("Range"), size); err != nil {
 		w.WriteHeader(http.StatusRequestedRangeNotSatisfiable)
 	} else {
