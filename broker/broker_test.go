@@ -90,7 +90,7 @@ func (s *Suit) Message(ctx context.Context, m message.Message) bool {
 }
 
 func (s *Suit) NewService(i int, name string, topic ...string) (Broker, error) {
-	b, err := New(s.url)
+	b, err := New(s.url, "")
 	if err != nil {
 		return nil, err
 	}
@@ -160,7 +160,7 @@ func (s *Suit) NewService(i int, name string, topic ...string) (Broker, error) {
 }
 
 func (s *Suit) TestQuery(t *testing.T) {
-	b, err := New(s.url)
+	b, err := New(s.url, "")
 	require.NoError(t, err)
 	defer b.Shutdown()
 	b.Catch("echo", s.Message)

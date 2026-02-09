@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -44,13 +45,13 @@ func (s *Block) Run(ctx context.Context, addr, port, base, file, pipe string, si
 	if err != nil {
 		return err
 	}
-	s.Broker, err = broker.New(pipe)
+	s.Broker, err = broker.New(pipe, path.Join("block", host, "1"))
 	if err != nil {
 		return err
 	}
 	defer s.Broker.Shutdown()
 	s.Broker.Catch("file", s.FileReply)
-	s.Broker.UseMiddleware(Auth{})
+	s.Broker.UseMiddleware(Authorize{})
 	s.Broker.UseTransport(log.Transport{Transport: s.Broker.Transport()})
 	err = s.Broker.Listen(ctx, "block", host, "1")
 	if err != nil {

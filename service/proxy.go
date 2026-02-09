@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"os"
+	"path"
 	"sync/atomic"
 
 	"github.com/pshvedko/nocopy/broker"
@@ -22,7 +23,7 @@ func (s *Proxy) Run(ctx context.Context, pipe string) error {
 	if err != nil {
 		return err
 	}
-	s.Broker, err = broker.New(pipe)
+	s.Broker, err = broker.New(pipe, path.Join("proxy", host, "1"))
 	if err != nil {
 		return err
 	}
@@ -32,7 +33,7 @@ func (s *Proxy) Run(ctx context.Context, pipe string) error {
 	s.Broker.Handle("head", s.HeadQuery)
 	s.Broker.Catch("head", s.HeadReply)
 	s.Broker.Handle("echo", s.EchoQuery)
-	s.Broker.UseMiddleware(Auth{})
+	s.Broker.UseMiddleware(Authorize{})
 	s.Broker.UseTransport(log.Transport{Transport: s.Broker.Transport()})
 	err = s.Broker.Listen(ctx, "proxy", host, "1")
 	if err != nil {

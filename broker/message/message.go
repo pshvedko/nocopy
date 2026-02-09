@@ -1,9 +1,12 @@
 package message
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
+	"unsafe"
 
 	"github.com/google/uuid"
 )
@@ -59,8 +62,10 @@ type FormatFunc struct {
 }
 
 type Middleware interface {
-	Decode(ctx context.Context, bytes []byte) (context.Context, error)
-	Encode(ctx context.Context) ([]byte, error)
+	Decode(context.Context, map[string][]string, []byte, int, int) (context.Context, error)
+	Encode(context.Context) ([]byte, error)
+	Writer(Writer) Writer
+	Name() string
 }
 
 type Mediator interface {
@@ -68,11 +73,11 @@ type Mediator interface {
 }
 
 type Encoder interface {
-	Encode(context.Context, Message) ([]byte, error)
+	Encode(context.Context, Message) (map[string][]string, []byte, error)
 }
 
 type Decoder interface {
-	Decode(context.Context, []byte) (context.Context, Message, error)
+	Decode(context.Context, map[string][]string, []byte) (context.Context, Message, error)
 	Processor
 }
 
@@ -87,6 +92,7 @@ type Envelope struct {
 	To     string    `json:"to,omitempty"`
 	Type   Type      `json:"type,omitempty"`
 	Method string    `json:"method,omitempty"`
+	Use    []string  `json:"use,omitempty"`
 }
 
 type Error struct {
@@ -148,29 +154,36 @@ func (r Raw) Method() string {
 
 type UnmarshalFunc func([]byte) error
 
-func (f UnmarshalFunc) UnmarshalJSON(bytes []byte) error { return f(bytes) }
+func (f UnmarshalFunc) UnmarshalJSON(p []byte) error { return f(p) }
 
-func Decode(ctx context.Context, bytes []byte, mediator Mediator) (context.Context, Message, error) {
+func begin(b, p []byte) int {
+	return int(uintptr(unsafe.Pointer(&p[0])) - uintptr(unsafe.Pointer(&b[0])))
+}
+
+func Decode(ctx context.Context, headers map[string][]string, bytes []byte, mediator Mediator) (context.Context, Message, error) {
 	var i int
 	var u int
 	var v interface{}
 	var r Raw
 	var uu []UnmarshalFunc
+	var ww []Middleware
 
-	uu = append(uu, func(bytes []byte) error {
+	uu = append(uu, func(b []byte) error {
 		v = &r.Err
 		i++
-		err := json.Unmarshal(bytes, &r.Envelope)
+		err := json.Unmarshal(b, &r.Envelope)
 		if err != nil {
 			return err
 		}
 		switch r.Envelope.Type {
 		case Query, Request, Broadcast:
-			for _, w := range mediator.Middleware(r.Envelope.Method) {
+			ww = mediator.Middleware(r.Envelope.Method)
+			for _, w := range ww {
+				w := w
 				uu = append(uu,
-					func(bytes []byte) (err error) {
+					func(b []byte) (err error) {
 						i++
-						ctx, err = w.Decode(ctx, bytes)
+						ctx, err = w.Decode(ctx, headers, bytes, begin(bytes, b), len(b))
 						return
 					},
 				)
@@ -182,11 +195,11 @@ func Decode(ctx context.Context, bytes []byte, mediator Mediator) (context.Conte
 			fallthrough
 		case Failure:
 			uu = append(uu,
-				func(bytes []byte) error {
+				func(b []byte) error {
 					i++
-					return json.Unmarshal(bytes, v)
+					return json.Unmarshal(b, v)
 				},
-				func(bytes []byte) error {
+				func(b []byte) error {
 					i++
 					return ErrRedundantMessage
 				},
@@ -216,11 +229,35 @@ type MarshalFunc func() ([]byte, error)
 
 func (f MarshalFunc) MarshalJSON() ([]byte, error) { return f() }
 
-func Encode(ctx context.Context, m Message, mediator Mediator) ([]byte, error) {
-	if m.ID() == uuid.Nil {
-		return nil, ErrEmpty
-	}
+type Writer interface {
+	io.Writer
+	Bytes() []byte
+	Len() int
+	Headers() map[string][]string
+}
 
+type Header map[string][]string
+
+type Buffer struct {
+	bytes.Buffer
+	Header
+}
+
+func (b *Buffer) Write(p []byte) (int, error) {
+	n := len(p)
+	n--
+	if p[n] == '\n' {
+		p = p[:n]
+	}
+	return b.Buffer.Write(p)
+}
+
+func (b *Buffer) Headers() map[string][]string {
+	return b.Header
+}
+
+func Encode(ctx context.Context, m Message, mediator Mediator) (map[string][]string, []byte, error) {
+	var aa []string
 	var ww []Middleware
 	if m.Type()&Answer == Query {
 		ww = mediator.Middleware(m.Method())
@@ -234,20 +271,31 @@ func Encode(ctx context.Context, m Message, mediator Mediator) ([]byte, error) {
 			To:     m.To(),
 			Type:   m.Type(),
 			Method: m.Method(),
+			Use:    aa,
 		})
 	})
 
+	var to Writer = &Buffer{}
+
 	for _, w := range ww {
-		mm = append(mm, func() ([]byte, error) {
-			return w.Encode(ctx)
-		})
+		to = w.Writer(to)
+		aa = append(aa, w.Name())
+		mm = append(mm, func(w Middleware) func() ([]byte, error) {
+			return func() ([]byte, error) {
+				return w.Encode(ctx)
+			}
+		}(w))
 	}
 
 	mm = append(mm, func() ([]byte, error) {
 		return m.Encode()
 	})
 
-	return json.Marshal(mm)
+	err := json.NewEncoder(to).Encode(mm)
+	if err != nil {
+		return nil, nil, err
+	}
+	return to.Headers(), to.Bytes()[:to.Len()], nil
 }
 
 type Body interface {

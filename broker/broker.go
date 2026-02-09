@@ -31,22 +31,22 @@ type Broker interface {
 	UseOptions(...exchange.Option)
 }
 
-func New(name string) (Broker, error) {
-	t, err := NewTransport(name)
+func New(name, ident string) (Broker, error) {
+	t, err := NewTransport(name, ident)
 	if err != nil {
 		return nil, err
 	}
 	return exchange.New(t), nil
 }
 
-func NewTransport(name string) (exchange.Transport, error) {
+func NewTransport(name string, ident string) (exchange.Transport, error) {
 	u, err := url.Parse(name)
 	if err != nil {
 		return nil, err
 	}
 	switch u.Scheme {
 	case "nats":
-		return nats.New(u)
+		return nats.New(u, ident)
 	default:
 		return nil, errors.New("invalid broker scheme")
 	}

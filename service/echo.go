@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"os"
+	"path"
 	"sync"
 	"time"
 
@@ -21,12 +22,12 @@ func (s *Proxy) Echo(ctx context.Context, concurrency, quantity, size int, delay
 	if err != nil {
 		return err
 	}
-	s.Broker, err = broker.New(pipe)
+	s.Broker, err = broker.New(pipe, path.Join("echo", host, "1"))
 	if err != nil {
 		return err
 	}
 	defer s.Broker.Shutdown()
-	s.Broker.UseMiddleware(Auth{})
+	s.Broker.UseMiddleware(Authorize{})
 	s.Broker.UseTransport(log.Transport{Transport: s.Transport()})
 	var w sync.WaitGroup
 	q := make(chan struct{}, size)

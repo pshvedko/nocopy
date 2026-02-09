@@ -58,12 +58,12 @@ type Exchange struct {
 	config    Config
 }
 
-func (e *Exchange) Encode(ctx context.Context, m message.Message) ([]byte, error) {
+func (e *Exchange) Encode(ctx context.Context, m message.Message) (map[string][]string, []byte, error) {
 	return message.Encode(ctx, m, e)
 }
 
-func (e *Exchange) Decode(ctx context.Context, bytes []byte) (context.Context, message.Message, error) {
-	return message.Decode(ctx, bytes, e)
+func (e *Exchange) Decode(ctx context.Context, headers map[string][]string, bytes []byte) (context.Context, message.Message, error) {
+	return message.Decode(ctx, headers, bytes, e)
 }
 
 func (e *Exchange) UseOptions(options ...Option) {

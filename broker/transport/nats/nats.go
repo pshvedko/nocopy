@@ -19,22 +19,21 @@ func (t *Transport) Unsubscribe(topic exchange.Topic) error {
 }
 
 const TopicPrefix = "%@"
-const TopicLength = 1
 
 func (t *Transport) Publish(ctx context.Context, m message.Message, e message.Encoder) error {
-	bytes, err := e.Encode(ctx, m)
+	headers, bytes, err := e.Encode(ctx, m)
 	if err != nil {
 		return err
 	}
 	if m.Type() == message.Broadcast {
-		return t.conn.Publish(TopicPrefix[:TopicLength]+m.To(), bytes)
+		return t.conn.PublishMsg(Message(TopicPrefix[:1]+m.To(), headers, bytes))
 	}
-	return t.conn.Publish(TopicPrefix[TopicLength:]+m.To(), bytes)
+	return t.conn.PublishMsg(Message(TopicPrefix[1:]+m.To(), headers, bytes))
 }
 
 func (t *Transport) Subscribe(ctx context.Context, at string, d message.Decoder) (exchange.Subscription, error) {
-	return t.conn.Subscribe(TopicPrefix[:TopicLength]+at, func(m *nats.Msg) {
-		ctx2, z, err := d.Decode(ctx, m.Data)
+	return t.conn.Subscribe(TopicPrefix[:1]+at, func(m *nats.Msg) {
+		ctx2, z, err := d.Decode(ctx, m.Header, m.Data)
 		if err != nil {
 			return
 		}
@@ -43,8 +42,8 @@ func (t *Transport) Subscribe(ctx context.Context, at string, d message.Decoder)
 }
 
 func (t *Transport) QueueSubscribe(ctx context.Context, at string, queue string, d message.Decoder) (exchange.Subscription, error) {
-	return t.conn.QueueSubscribe(TopicPrefix[TopicLength:]+at, queue, func(m *nats.Msg) {
-		ctx2, z, err := d.Decode(ctx, m.Data)
+	return t.conn.QueueSubscribe(TopicPrefix[1:]+at, queue, func(m *nats.Msg) {
+		ctx2, z, err := d.Decode(ctx, m.Header, m.Data)
 		if err != nil {
 			return
 		}
@@ -60,12 +59,16 @@ func (t *Transport) Close() {
 	t.conn.Close()
 }
 
-func New(u *url.URL) (*Transport, error) {
-	c, err := nats.Connect(u.String(), nats.NoEcho())
+func New(u *url.URL, name string) (*Transport, error) {
+	c, err := nats.Connect(u.String(), nats.Name(name), nats.NoEcho())
 	if err != nil {
 		return nil, err
 	}
 	return &Transport{
 		conn: c,
 	}, nil
+}
+
+func Message(subject string, headers map[string][]string, bytes []byte) *nats.Msg {
+	return &nats.Msg{Subject: subject, Header: headers, Data: bytes}
 }
