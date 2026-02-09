@@ -12,8 +12,8 @@ import (
 	"github.com/pshvedko/nocopy/broker/message"
 )
 
-var ErrDigestMismatch = errors.New("digest do not match")
-var ErrAlgorithmMismatch = errors.New("algorithm do not match")
+var ErrDigestMismatch = errors.New("digest don't match")
+var ErrAlgorithmMismatch = errors.New("algorithm don't match")
 
 type ContextKey struct {
 	name string
