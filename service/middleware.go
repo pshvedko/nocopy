@@ -58,7 +58,6 @@ func (a Authorize) Encode(ctx context.Context) ([]byte, error) {
 type Digest struct {
 	message.Writer
 	hash.Hash
-	A string
 }
 
 func (d *Digest) Write(p []byte) (int, error) {
@@ -91,7 +90,6 @@ func (s Signature) Name() string {
 
 func (s Signature) Writer(w message.Writer) message.Writer {
 	return &Digest{
-		A:      s.Algorithm.String(),
 		Hash:   s.Algorithm.New(),
 		Writer: w,
 	}
