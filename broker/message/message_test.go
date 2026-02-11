@@ -65,6 +65,24 @@ func TestEncode(t *testing.T) {
 	}
 }
 
+type X struct{}
+
+func (x X) Decode(context.Context, map[string][]string, []byte, int, int) (context.Context, error) {
+	return nil, nil
+}
+
+func (x X) Encode(context.Context) ([]byte, error) {
+	return []byte{'{', '}'}, nil
+}
+
+func (x X) Writer(w message.Writer) message.Writer {
+	return w
+}
+
+func (x X) Name() string {
+	return "x"
+}
+
 func TestDecode(t *testing.T) {
 	type args struct {
 		ctx      context.Context
@@ -86,7 +104,7 @@ func TestDecode(t *testing.T) {
 				ctx:      context.TODO(),
 				headers:  map[string][]string{"Digest": {`1c713e033f30e90d5ad615cf9637e4c4d7dd5d28dfdcfa14a146717819cee7bc`}},
 				bytes:    []byte((`[{"id":"00000000-0000-0000-0000-000000000000","from":"me","return":["left"],"to":"right","method":"try","use":["!authorize","!signature"]},{"user":"admin"},{"algorithm":5},{"serial":1,"delay":1000000000}]`)),
-				mediator: Mediator{Middlewares: []message.Middleware{service.Authorize{User: "admin"}, service.Signature{Algorithm: crypto.SHA256}}},
+				mediator: Mediator{Middlewares: []message.Middleware{service.Authorize{User: "admin"}, X{}, service.Signature{Algorithm: crypto.SHA256}}},
 			},
 			want: context.WithValue(context.TODO(), service.AuthorizeKey, &service.Authorize{User: "admin"}),
 			want1: message.Raw{
