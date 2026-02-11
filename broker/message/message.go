@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"slices"
 	"strings"
@@ -163,13 +162,15 @@ func begin(b, p []byte) int {
 	return int(uintptr(unsafe.Pointer(&p[0])) - uintptr(unsafe.Pointer(&b[0])))
 }
 
-type ErrMandatory struct {
-	name string
+type ErrMandatoryMiddlewareMissing struct {
+	Name string
 }
 
-func (e ErrMandatory) Error() string {
-	return fmt.Sprintf("mandatory middleware is missing: %s", e.name)
+func (e *ErrMandatoryMiddlewareMissing) Error() string {
+	return "mandatory middleware is missing: " + e.Name
 }
+
+const MandatoryMiddlewarePrefix = "!"
 
 func Decode(ctx context.Context, headers map[string][]string, bytes []byte, mediator Mediator) (context.Context, Message, error) {
 	var i int
@@ -190,12 +191,15 @@ func Decode(ctx context.Context, headers map[string][]string, bytes []byte, medi
 		case Query, Request, Broadcast:
 			ww = mediator.Middleware(r.Envelope.Method)
 			for _, w := range ww {
-				if !slices.Contains(r.Envelope.Use, w.Name()) {
-					if strings.HasPrefix(w.Name(), "!") {
-						return ErrMandatory{name: w.Name()}
+				n := w.Name()
+
+				if !slices.Contains(r.Envelope.Use, n) {
+					if !strings.HasPrefix(n, MandatoryMiddlewarePrefix) {
+						continue
 					}
-					continue
+					return &ErrMandatoryMiddlewareMissing{Name: n}
 				}
+
 				w := w
 				uu = append(uu,
 					func(b []byte) (err error) {
