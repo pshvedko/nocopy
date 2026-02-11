@@ -16,14 +16,14 @@ var ErrDigestMismatch = errors.New("digest don't match")
 var ErrAlgorithmMismatch = errors.New("algorithm don't match")
 
 type ContextKey struct {
-	name string
+	Name string
 }
 
-func (k *ContextKey) String() string {
-	return k.name
+func (k ContextKey) String() string {
+	return k.Name
 }
 
-var AuthorizeKey = &ContextKey{"Authorize"}
+var AuthorizeKey = ContextKey{Name: "Authorize"}
 
 type Authorize struct {
 	User string `json:"user,omitempty"`
