@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"hash"
 
 	"github.com/pshvedko/nocopy/broker/message"
@@ -15,24 +14,22 @@ import (
 var ErrDigestMismatch = errors.New("digest don't match")
 var ErrAlgorithmMismatch = errors.New("algorithm don't match")
 
-type ContextKey struct {
-	Name string
-}
+type ContextKey string
 
 func (k ContextKey) String() string {
-	return k.Name
+	return string(k)
 }
 
-var AuthorizeKey = ContextKey{Name: "Authorize"}
+var AuthorizeKey = ContextKey("Authorize")
 
 type Authorize struct {
 	User string `json:"user,omitempty"`
 }
 
-func (a Authorize) String() string { return fmt.Sprintf("%#v", a) }
+func (a Authorize) String() string { return "Authorize" }
 
 func (a Authorize) Name() string {
-	return "!authorize"
+	return message.MandatoryMiddlewarePrefix + "authorize"
 }
 
 func (a Authorize) Writer(w message.Writer) message.Writer {
@@ -85,7 +82,7 @@ type Signature struct {
 }
 
 func (s Signature) Name() string {
-	return "!signature"
+	return message.MandatoryMiddlewarePrefix + "signature"
 }
 
 func (s Signature) Writer(w message.Writer) message.Writer {
